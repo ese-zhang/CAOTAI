@@ -5,11 +5,22 @@
 
 ---
 
+## 状态&Status
+
+项目正在持续进行中，可能需要一段时间才能有较好的成品。
+草台是一个正在进行的实验。
+它固执己见，严格，故意保守。
+草台认为，力量来自于严格管理。
+
+CAOTAI is an ongoing experiment.  
+It is opinionated, strict, and intentionally conservative.
+CAOTAI believes **power comes from good management**.
+
 ## 中文版
 
 ### 草台班子是什么？
 
-**草台班子（CAOTAI）不是一个“让 AI 自动写代码”的项目。**  
+**草台班子（CAOTAI）不是一个“让 AI 全自动写代码”的项目。**  
 它的核心理念恰恰相反：
 
 > **AI 是不可靠的执行者，人类才是设计者。**
@@ -241,11 +252,3 @@ CAOTAI *is* for people who:
 - Prefer structure and constraints over fragile automation
 
 ---
-
-## Status
-
-CAOTAI is an ongoing experiment.  
-It is opinionated, strict, and intentionally conservative.
-
-If you believe AI should be powerful,  
-CAOTAI believes **power must come after control**.
