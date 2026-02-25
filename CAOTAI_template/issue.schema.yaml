@@ -1,0 +1,149 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+type: object
+required:
+  - issue
+  - context
+  - interfaces
+  - workflow
+  - requirements
+  - acceptance
+
+properties:
+
+  issue:
+    type: object
+    required: [id, module, type, version]
+    properties:
+      id:
+        type: string
+        pattern: "^TASK-[A-Z0-9]+$"
+      module:
+        type: string
+      type:
+        type: string
+        enum: [implementation, refactor, fix, test]
+      version:
+        type: number
+
+  context:
+    type: object
+    required: [repository, dependencies, semantics]
+    properties:
+      repository:
+        type: object
+        required: [root, target_files]
+        properties:
+          root:
+            type: string
+          target_files:
+            type: array
+            items:
+              type: string
+
+      dependencies:
+        type: object
+        properties:
+          functions:
+            type: array
+            items:
+              type: object
+              required: [name, signature]
+              properties:
+                name:
+                  type: string
+                signature:
+                  type: string
+
+      semantics:
+        type: object
+        required: [load_messages, save_messages]
+        properties:
+          load_messages:
+            type: object
+            required: [behavior, returns]
+            properties:
+              behavior:
+                enum: [overwrite_read, append_read]
+              returns:
+                enum: [deep_copy, shared_ref]
+
+          save_messages:
+            type: object
+            required: [behavior, consistency]
+            properties:
+              behavior:
+                enum: [atomic_overwrite, append]
+              consistency:
+                enum: [synchronous, eventual]
+
+  interfaces:
+    type: object
+    required: [public_methods, invariants]
+    properties:
+      public_methods:
+        type: array
+        items:
+          type: object
+          required: [name, inputs, outputs]
+          properties:
+            name:
+              type: string
+            inputs:
+              type: object
+              additionalProperties:
+                type: string
+            outputs:
+              nullable: true
+      invariants:
+        type: array
+        items:
+          type: string
+
+  workflow:
+    type: object
+    required: [model, states, transitions]
+    properties:
+      model:
+        enum: [state_machine]
+      states:
+        type: array
+        items:
+          type: string
+      transitions:
+        type: array
+        items:
+          type: object
+          required: [name, from, to]
+          properties:
+            name:
+              type: string
+            from:
+              type: string
+            to:
+              type: string
+
+  requirements:
+    type: object
+    required: [must, must_not]
+    properties:
+      must:
+        type: array
+        items:
+          type: string
+      must_not:
+        type: array
+        items:
+          type: string
+
+  acceptance:
+    type: object
+    required: [tests, invariants]
+    properties:
+      tests:
+        type: array
+        items:
+          type: string
+      invariants:
+        type: array
+        items:
+          type: string

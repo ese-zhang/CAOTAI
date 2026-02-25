@@ -1,0 +1,114 @@
+# ===============================
+# Issue Metadata
+# ===============================
+
+issue:
+  id: TASK-XXX
+  module: message_io
+  type: implementation        # implementation | refactor | fix | test
+  version: 1.0
+
+# ===============================
+# Execution Context (World Model)
+# ===============================
+
+context:
+  repository:
+    root: backend/
+    target_files:
+      - backend/message_io.py
+
+  dependencies:
+    functions:
+      - name: load_messages
+        signature: load_messages(path: str) -> List[Dict]
+      - name: save_messages
+        signature: save_messages(messages: List[Dict], path: str) -> None
+
+  semantics:
+    load_messages:
+      behavior: overwrite_read        # overwrite_read | append_read
+      returns: deep_copy              # deep_copy | shared_ref
+    save_messages:
+      behavior: atomic_overwrite      # atomic_overwrite | append
+      consistency: synchronous        # synchronous | eventual
+
+# ===============================
+# Interface Contract
+# ===============================
+
+interfaces:
+  public_methods:
+    - name: start_stream
+      inputs:
+        session_path: str
+      outputs:
+        assistant_message: Dict
+
+    - name: append_content
+      inputs:
+        session_path: str
+        chunk: str
+      outputs: null
+
+    - name: end_stream
+      inputs:
+        session_path: str
+        tool_calls: Optional[List[Dict]]
+      outputs: null
+
+  invariants:
+    - message_is_alias_of_messages_last
+    - no_disk_io_under_global_lock
+    - session_lock_guards_message_mutation
+
+# ===============================
+# Workflow / Control Flow
+# ===============================
+
+workflow:
+  model: state_machine
+  states:
+    - INIT
+    - STREAMING
+    - FINALIZED
+
+  transitions:
+    - name: start_stream
+      from: INIT
+      to: STREAMING
+
+    - name: append_content
+      from: STREAMING
+      to: STREAMING
+
+    - name: end_stream
+      from: STREAMING
+      to: FINALIZED
+
+# ===============================
+# Requirements & Constraints
+# ===============================
+
+requirements:
+  must:
+    - thread_safe
+    - background_flush_supported
+
+  must_not:
+    - introduce_async_await
+    - change_persistence_semantics
+    - add_global_mutable_state
+
+# ===============================
+# Definition of Done (Machine-checkable)
+# ===============================
+
+acceptance:
+  tests:
+    - message_io_test.py::test_stream_lifecycle
+    - message_io_test.py::test_concurrent_append
+
+  invariants:
+    - invariant(message_is_alias_of_messages_last)
+    - invariant(no_disk_io_under_global_lock)
