@@ -1,0 +1,7 @@
+# global settings
+default_llm_settings:
+  default_model: Pro/MiniMaxAI/MiniMax-M2.5
+  default_url: https://api.siliconflow.cn/v1
+  default_api_key: sk-12112121121
+
+document_root: ../documents
