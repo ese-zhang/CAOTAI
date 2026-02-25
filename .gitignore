@@ -1,0 +1,6 @@
+﻿*.pyc
+.venv
+.idea
+playground
+config/settings.yaml
+doc/*.json
