@@ -14,6 +14,7 @@ else:
 
 
 # 获取默认参数，直接使用嵌套路径
-default_api_key = default_settings.get("default_llm_settings.default_api_key")
-default_url = default_settings.get("default_llm_settings.default_url")
-default_model = default_settings.get("default_llm_settings.default_model")
+DEFAULT_API_KEY = default_settings.get("default_llm_settings.default_api_key")
+DEFAULT_URL = default_settings.get("default_llm_settings.default_url")
+DEFAULT_MODEL = default_settings.get("default_llm_settings.default_model")
+DOCUMENT_ROOT = default_settings.get("document_root")

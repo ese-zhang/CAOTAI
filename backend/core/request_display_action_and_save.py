@@ -27,7 +27,7 @@ def request_display_action_and_save(
     """
     # 0. 初始化
     assistant_message = agent_memory.start_stream(session_path)
-    messages = agent_memory.read_messages(session_path)
+    messages = agent_memory.recall(session_path)
     # 1. 请求模型进行思考和工具请求 Request
     stream = client.chat.completions.create(
         model=model_settings["model"],

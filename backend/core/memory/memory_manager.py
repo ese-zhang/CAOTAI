@@ -2,7 +2,7 @@ import time
 import threading
 import warnings
 from typing import Dict, List, Optional
-from backend.infra.fileio.load_message import save_messages, load_messages
+from backend.infra.database import db
 
 
 class SessionState:
@@ -12,7 +12,7 @@ class SessionState:
     def __init__(self, session_path: str):
         self.session_path = session_path
         try:
-            self.messages: List[Dict] = load_messages(session_path)
+            self.messages: List[Dict] = db.load_messages(session_path)
         except FileNotFoundError:
             self.messages: List[Dict] = []
         self.dirty = False
@@ -92,27 +92,21 @@ class MemoryManager:
             return assistant_message
 
 
-    def end_stream(
-            self,
-            session_path: str,
-            tool_calls: Optional[List[Dict]] = None
-            ):
-        """
-        stream 正常结束或被中断
-        """
+    def end_stream(self, session_path: str, tool_calls: Optional[List[Dict]] = None):
         with self.global_lock:
             state = self.sessions.pop(session_path, None)
-
-        if not state:
-            return
+        if not state: return
 
         with state.lock:
-            if tool_calls:
-                state.messages[-1]["tool_calls"] = tool_calls
-
-            save_messages(state.messages, session_path)
-            state.streaming = False
-            state.dirty = False
+            # 获取内存中最后一条 assistant 消息的状态
+            last_msg = state.messages[-1]
+            # 增量更新数据库中对应的最后一行
+            db.update_last_message(
+                session_path, 
+                content=last_msg.get("content"),
+                reasoning=last_msg.get("model_extra", {}).get("reasoning_content"),
+                tool_calls=tool_calls
+            )
 
     # ---------- 增量写入 ----------
 
@@ -148,17 +142,14 @@ class MemoryManager:
 
         # 2. 读取完整历史
         try:
-            messages = load_messages(session_path)
+            messages = db.load_messages(session_path)
             if not isinstance(messages, list):
                 messages = []
         except FileNotFoundError:
             messages = []
 
-        # 3. 追加新 message
-        messages.append(message)
-
         # 4. 立即落盘（append_message 是强一致语义）
-        save_messages(messages, session_path)
+        db.append_message(session_path, message)
 
     # ---------- 读取 ----------
 
@@ -204,29 +195,37 @@ class MemoryManager:
     def _flush_loop(self):
         while self.running:
             time.sleep(0.1)
-            # 这里的 states 只是引用快照
             with self.global_lock:
                 states = list(self.sessions.values())
 
             now = time.time()
             for state in states:
-                # 检查过期逻辑 (可选)
-                # if now - state.last_flush > 3600: self.end_stream(state.session_path)
-
                 if not state.dirty or now - state.last_flush < self.flush_interval:
                     continue
 
                 if state.lock.acquire(blocking=False):
                     try:
-                        # 重点：快照后再写，减少锁占用时间
-                        messages_to_save = list(state.messages)
+                        # 获取最后一条消息（正在流式增长的那条）
+                        if not state.messages:
+                            state.dirty = False
+                            continue
+
+                        last_msg = state.messages[-1]
+                        # 准备快照数据
+                        content = last_msg.get("content", "")
+                        reasoning = last_msg.get("model_extra", {}).get("reasoning_content", "")
+
                         state.dirty = False
                         state.last_flush = now
+
+                        # 在锁内完成快照后，去锁外执行数据库操作
+                        session_id = state.session_path
                     finally:
                         state.lock.release()
 
-                    # 在锁外执行 IO
-                    save_messages(messages_to_save, state.session_path)
+                    # 增量同步：更新数据库中该 Session 的最后一条记录
+                    # 这样即便用户没流完，数据库里也能看到当前进度
+                    db.update_last_message(session_id, content, reasoning)
 
     def shutdown(self):
         self.running = False
