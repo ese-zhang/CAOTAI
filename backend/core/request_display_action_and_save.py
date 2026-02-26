@@ -1,6 +1,8 @@
 import json
 from backend.infra.fileio import save_messages
-from ..infra.fileio import agent_messageio
+from .memory import agent_memory
+
+
 def request_display_action_and_save(
     client, # 模型客户端
     session_path, # 对话历史文件路径
@@ -24,8 +26,8 @@ def request_display_action_and_save(
         ::param kwargs: 其他参数, 必须符合client的参数要求
     """
     # 0. 初始化
-    assistant_message = agent_messageio.start_stream(session_path)
-    messages = agent_messageio.read_messages(session_path)
+    assistant_message = agent_memory.start_stream(session_path)
+    messages = agent_memory.recall(session_path)
     # 1. 请求模型进行思考和工具请求 Request
     stream = client.chat.completions.create(
         model=model_settings["model"],
@@ -45,7 +47,7 @@ def request_display_action_and_save(
         # 接收思考内容
         if delta.reasoning_content:
             reasoning_content += delta.reasoning_content
-            agent_messageio.append_reasoning(
+            agent_memory.append_reasoning(
                 session_path,
                 delta.reasoning_content
                 )
@@ -65,7 +67,7 @@ def request_display_action_and_save(
         # 接收正文内容
         if delta.content:
             content += delta.content
-            agent_messageio.append_content(
+            agent_memory.append_content(
                 session_path,
                 delta.content
                 )
@@ -75,7 +77,7 @@ def request_display_action_and_save(
         for i in sorted(tool_calls_collector.keys())
         ]
 
-    agent_messageio.end_stream(
+    agent_memory.end_stream(
         session_path,
         tool_calls=final_tool_calls if final_tool_calls else None
         )
@@ -107,15 +109,10 @@ def request_display_action_and_save(
             new_message=dict({"role": "tool",
                               "content": tool_result,
                               "tool_call_id": tool_call["id"]})
-            agent_messageio.append_message(
+            agent_memory.append_message(
                 session_path,new_message
                 )
     else:
         is_final_answer=True
 
-    # 4. 保存对话历史 Save
-    save_messages(
-        agent_messageio.read_messages(session_path),
-        session_path
-        )
     return is_final_answer

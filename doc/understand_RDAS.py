@@ -1,6 +1,7 @@
 from openai import OpenAI
-from backend.infra.config import default_api_key, default_url, default_model  # 导入默认配置
+from backend.infra.config import DEFAULT_API_KEY, DEFAULT_URL, DEFAULT_MODEL  # 导入默认配置
 from backend.core.request_display_action_and_save import request_display_action_and_save
+from backend.infra.database import db
 from backend.infra.fileio import save_messages
 
 """
@@ -17,13 +18,17 @@ def get_weather(city: str):
     return f"城市{city}的天气是晴天"
 
 if __name__ == "__main__":
-    messages = [{"role": "user", "content": "帮我查一下北京的天气。"}]
-    
-    save_messages(messages, "sessions.json")
-    client = OpenAI(api_key=default_api_key,
-                    base_url=default_url)
+    session_id = "sessions_01"  # 建议用唯一的 ID
+    user_message = {"role": "user", "content": "帮我查一下北京的天气。"}
+
+    # 2. 【核心】通过 memory_manager 初始化 session 并存入第一条消息
+    # 这步会调用 db.append_message，确保数据库里有了 user 消息
+    db.clear_session(session_id)
+    db.append_message(session_id, user_message)
+    client = OpenAI(api_key=DEFAULT_API_KEY,
+                    base_url=DEFAULT_URL)
     model_settings = {
-        "model": default_model,
+        "model": DEFAULT_MODEL,
         "tools": [
             {
                 "type": "function",
@@ -44,5 +49,6 @@ if __name__ == "__main__":
             "get_weather": get_weather
         }
     }
-    request_display_action_and_save(client=client, session_path="sessions.json", model_settings=model_settings)
-    request_display_action_and_save(client=client, session_path="sessions.json", model_settings=model_settings)
+    request_display_action_and_save(client=client, session_path=session_id, model_settings=model_settings)
+    print(db.load_messages(session_id=session_id))
+    #request_display_action_and_save(client=client, session_path="sessions.json", model_settings=model_settings)
