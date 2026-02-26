@@ -1,3 +1,3 @@
-from backend.core.memory.memory_manager import MessageManager
+from backend.core.memory.memory_manager import MemoryManager
 
-agent_memory = MessageManager()
+agent_memory = MemoryManager()

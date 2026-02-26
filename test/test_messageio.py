@@ -6,7 +6,7 @@ import time
 import random
 import string
 
-from backend.core.memory.memory_manager import MessageManager
+from backend.core.memory.memory_manager import MemoryManager
 
 # -------------------------
 # test helpers
@@ -49,7 +49,7 @@ def test_assistant_message_structure():
     path = session_file("basic")
     init_empty_session(path)
 
-    io = MessageManager(flush_interval=0.05)
+    io = MemoryManager(flush_interval=0.05)
 
     io.start_stream(path)
     io.append_content(path, "hello")
@@ -75,7 +75,7 @@ def test_content_is_append_only():
     path = session_file("append_only")
     init_empty_session(path)
 
-    io = MessageManager(flush_interval=0.02)
+    io = MemoryManager(flush_interval=0.02)
 
     io.start_stream(path)
 
@@ -100,7 +100,7 @@ def test_abort_preserves_partial_content():
     path = session_file("abort")
     init_empty_session(path)
 
-    io = MessageManager(flush_interval=0.05)
+    io = MemoryManager(flush_interval=0.05)
 
     io.start_stream(path)
     io.append_content(path, "part1\n")
@@ -129,7 +129,7 @@ def test_concurrent_start_stream_same_session():
     path = session_file("same_session")
     init_empty_session(path)
 
-    io = MessageManager(flush_interval=0.05)
+    io = MemoryManager(flush_interval=0.05)
 
     def worker():
         io.start_stream(path)
@@ -160,7 +160,7 @@ def test_concurrent_multi_session_isolated():
     """
     setup_env()
 
-    io = MessageManager(flush_interval=0.02)
+    io = MemoryManager(flush_interval=0.02)
 
     session_paths = []
     for i in range(5):

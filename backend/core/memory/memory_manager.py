@@ -1,5 +1,6 @@
 import time
 import threading
+import warnings
 from typing import Dict, List, Optional
 from backend.infra.fileio.load_message import save_messages, load_messages
 
@@ -44,7 +45,7 @@ class SessionState:
         return copy.deepcopy(self.messages)
 
 
-class MessageManager:
+class MemoryManager:
     """
     职责：
     - 路由 session -> SessionState
@@ -161,7 +162,7 @@ class MessageManager:
 
     # ---------- 读取 ----------
 
-    def read_messages(self, session_path: str) -> List[Dict]:
+    def recall(self, session_path: str) -> List[Dict]:
         """
         返回经过 memory 策略处理后的消息：
         - 高频消息权重高
@@ -170,6 +171,7 @@ class MessageManager:
         """
         state = self.sessions.get(session_path)
         if not state:
+            warnings.warn(f"Session {session_path} 不存在", UserWarning)
             return []
 
         with state.lock:
