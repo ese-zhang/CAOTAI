@@ -1,3 +1,4 @@
+import copy
 import time
 import threading
 import warnings
@@ -12,9 +13,11 @@ class SessionState:
     def __init__(self, session_path: str):
         self.session_path = session_path
         try:
-            self.messages: List[Dict] = db.load_messages(session_path)
+            raw_data = db.load_messages(session_path)
+            # 使用深拷贝，确保即便 db 模块抽风返回了共享对象，内存也是隔离的
+            self.messages = copy.deepcopy(raw_data) if raw_data else []
         except FileNotFoundError:
-            self.messages: List[Dict] = []
+            self.messages = []
         self.dirty = False
         self.last_flush = 0.0
         self.streaming = True
