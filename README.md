@@ -16,6 +16,52 @@ CAOTAI is an ongoing experiment.
 It is opinionated, strict, and intentionally conservative.
 CAOTAI believes **power comes from good management**.
 
+```mermaid
+flowchart TD
+    A["Human / Master Agent<br/>Project Manager"] --> B["craft_issue.yaml<br/>High-level Design"]
+
+    %% Design Refinement Phase
+    B --> C[DAG Scheduler]
+    C --> D[Issue Refinement Agent]
+    D --> E["IR Validation<br/>Schema + Invariants"]
+    E -->|Fail| D
+
+    E --> F["Self-Reflection Agents<br/>Spec Critic / Logic Critic"]
+    F -->|Fail| D
+    F -->|Pass| G["issue.yaml<br/>Design Frozen"]
+
+    %% Execution Phase
+    G --> H["Execution Agent<br/>(Stateless)"]
+    G --> I["Test Agent<br/>(Stateless)"]
+
+    H --> J[Implementation Code]
+    I --> K[Test Code]
+
+    %% Testing Phase
+    J --> L[Full Test Suite]
+    K --> L
+
+    L -->|Fail| M[Error Report]
+    M --> H
+
+    %% Escalation Path
+    L -->|Ambiguous / Non-Deterministic| N[Human Intervention]
+    N --> B
+
+    %% Review Phase
+    L -->|Pass| O[High-Level Review Agent]
+    O -->|Fail| B
+
+    %% Documentation Phase
+    O -->|Pass| P["Interface & Contract Archive<br/>YAML Docs"]
+
+    %% Merge Phase
+    P --> Q[Git Merge Agent]
+    Q --> R[sub-master Branch]
+    R --> S[Human Final Review]
+    S -->|Approve| T[master Branch]
+    S -->|Reject| B
+```
 ## 中文版
 
 ### 草台班子是什么？
