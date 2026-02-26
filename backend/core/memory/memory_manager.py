@@ -1,24 +1,50 @@
 import time
 import threading
 from typing import Dict, List, Optional
-from .load_message import save_messages, load_messages
+from backend.infra.fileio.load_message import save_messages, load_messages
 
 
 class SessionState:
     """
     单个 session 的完整状态
     """
-    def __init__(self, session_path: str, messages: List[Dict]):
+    def __init__(self, session_path: str):
         self.session_path = session_path
-        self.messages = messages
-        self.message = messages[-1]          # 当前 streaming 的 assistant message
+        try:
+            self.messages: List[Dict] = load_messages(session_path)
+        except FileNotFoundError:
+            self.messages: List[Dict] = []
         self.dirty = False
         self.last_flush = 0.0
         self.streaming = True
         self.lock = threading.Lock()
 
+    def add_message(self, msg: Dict):
+        self.messages.append(msg)
+        self.mark_dirty()
 
-class MessageIO:
+    def append_content(self, chunk: str):
+        if not self.messages:
+            return
+        self.messages[-1]["content"] = (self.messages[-1].get("content") or "") + chunk
+        self.mark_dirty()
+
+    def append_reasoning(self, chunk: str):
+        if not self.messages:
+            return
+        reasoning = self.messages[-1]["model_extra"].get("reasoning_content", "")
+        self.messages[-1]["model_extra"]["reasoning_content"] = reasoning + chunk
+        self.mark_dirty()
+
+    def mark_dirty(self):
+        self.dirty = True
+
+    def snapshot_messages(self) -> List[Dict]:
+        import copy
+        return copy.deepcopy(self.messages)
+
+
+class MessageManager:
     """
     职责：
     - 路由 session -> SessionState
@@ -48,29 +74,22 @@ class MessageIO:
         - 插入占位 assistant message
         """
         with self.global_lock:
-            if session_path in self.sessions:
-                # 语义选择：复用已有 session（也可以 raise）
-                return self.sessions[session_path].message
-
-            try:
-                messages = load_messages(session_path)
-                if not isinstance(messages, list):
-                    messages = []
-            except FileNotFoundError:
-                messages = []
+            state = self.sessions.get(session_path)
+            if not state:
+                # 初始化内存 session
+                state = SessionState(session_path)
+                self.sessions[session_path] = state
 
             assistant_message = {
                 "role": "assistant",
                 "content": None,
                 "model_extra": {"reasoning_content": ""}
                 }
-            messages.append(assistant_message)
+            with state.lock:
+                state.add_message(assistant_message)  # 内存中增加
 
-            state = SessionState(session_path, messages)
-            self.sessions[session_path] = state
-
-            save_messages(messages, session_path)
             return assistant_message
+
 
     def end_stream(
             self,
@@ -100,21 +119,17 @@ class MessageIO:
         state = self.sessions.get(session_path)
         if not state:
             return
-
         with state.lock:
-            msg = state.message
-            msg["content"] = (msg["content"] or "") + chunk
-            state.dirty = True
+            state.append_content(chunk)
+            state.mark_dirty()
 
     def append_reasoning(self, session_path: str, chunk: str):
         state = self.sessions.get(session_path)
         if not state:
             return
-
         with state.lock:
-            reasoning = state.message["model_extra"].get("reasoning_content", "")
-            state.message["model_extra"]["reasoning_content"] = reasoning + chunk
-            state.dirty = True
+            state.append_reasoning(chunk)
+            state.mark_dirty()
 
     def append_message(self, session_path: str, message: Dict):
         """
@@ -147,18 +162,41 @@ class MessageIO:
     # ---------- 读取 ----------
 
     def read_messages(self, session_path: str) -> List[Dict]:
+        """
+        返回经过 memory 策略处理后的消息：
+        - 高频消息权重高
+        - 最近消息优先
+        - 可以加 embedding/semantic retrieval
+        """
         state = self.sessions.get(session_path)
-        if state:
-            with state.lock:
-                import copy
-                return copy.deepcopy(state.messages)
-
-        # 如果内存没有，去磁盘读
-        try:
-            return load_messages(session_path)
-        except:
+        if not state:
             return []
 
+        with state.lock:
+            # 这里做 memory 策略处理，而不是直接返回全量 messages
+            messages = state.messages
+            filtered = self.memory_filter(messages)
+            return filtered
+
+    @staticmethod
+    def memory_filter(messages: List[Dict]) -> List[Dict]:
+        """
+        示例策略：
+        - 最近 5 条必选
+        - 热门 message（被访问/引用次数高）保留
+        - 可选：embedding 检索相关内容
+        """
+        recent = messages[-5:]
+        hot = sorted(messages, key=lambda m: m.get("access_count", 0), reverse=True)
+        # 合并去重
+        seen_ids = set()
+        result = []
+        for msg in recent + hot:
+            mid = id(msg)
+            if mid not in seen_ids:
+                result.append(msg)
+                seen_ids.add(mid)
+        return result
     # ---------- 后台 flush ----------
 
     def _flush_loop(self):
@@ -191,19 +229,3 @@ class MessageIO:
     def shutdown(self):
         self.running = False
         self.worker.join()
-
-    def _debug(self, where: str, session_path: str, state: Optional[SessionState]):
-        tid = threading.get_ident()
-        if not state:
-            print(f"[{where}] tid={tid} session={session_path} state=None")
-            return
-
-        print(
-            f"[{where}] tid={tid} session={session_path} "
-            f"id(state)={id(state)} "
-            f"streaming={state.streaming} "
-            f"dirty={state.dirty} "
-            f"messages_id={id(state.messages)} "
-            f"messages_len={len(state.messages) if state.messages else 'None'} "
-            f"message_id={id(state.message) if state.message else 'None'}"
-        )
