@@ -115,9 +115,4 @@ def request_display_action_and_save(
     else:
         is_final_answer=True
 
-    # 4. 保存对话历史 Save
-    save_messages(
-        agent_memory.read_messages(session_path),
-        session_path
-        )
     return is_final_answer

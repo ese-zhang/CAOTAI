@@ -107,7 +107,7 @@ class MessageManager:
 
         with state.lock:
             if tool_calls:
-                state.message["tool_calls"] = tool_calls
+                state.messages[-1]["tool_calls"] = tool_calls
 
             save_messages(state.messages, session_path)
             state.streaming = False
