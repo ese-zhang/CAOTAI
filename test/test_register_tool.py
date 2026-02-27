@@ -91,12 +91,29 @@ class TestListModules:
         assert "Baz" in result
         assert result == sorted(result)
 
-    def test_depth_nonzero_lists_imports(self, tmp_path):
-        py = tmp_path / "m.py"
-        py.write_text("import os\nfrom pathlib import Path\n")
+    def test_depth_one_lists_class_methods(self, tmp_path):
+        py = tmp_path / "agent.py"
+        py.write_text(
+            "class basic_agent:\n"
+            "    def __init__(self): pass\n"
+            "    def get_payload(self): pass\n"
+            "    def run(self, request): pass\n"
+            "    def prompt_builder(self): pass\n"
+        )
         result = list_modules(str(py), 1)
-        assert "os" in result
-        assert "Path" in result
+        assert "basic_agent.__init__" in result
+        assert "basic_agent.get_payload" in result
+        assert "basic_agent.run" in result
+        assert "basic_agent.prompt_builder" in result
+
+    def test_depth_zero_only_top_level(self, tmp_path):
+        py = tmp_path / "agent.py"
+        py.write_text(
+            "class basic_agent:\n"
+            "    def run(self): pass\n"
+        )
+        result = list_modules(str(py), 0)
+        assert result == ["basic_agent"]
 
     def test_syntax_error_returns_empty(self, tmp_path):
         py = tmp_path / "bad.py"
@@ -182,6 +199,39 @@ class TestReadModule:
             mock_p.suffix = ".py"
             mock_p.read_text.side_effect = RuntimeError("io error")
             assert "读取失败" in read_module("x.py", "Foo")
+
+    def test_class_method_with_qualified_name(self, tmp_path):
+        py = tmp_path / "m.py"
+        py.write_text(
+            "class Foo:\n"
+            "    def bar(self):\n"
+            "        return 1\n"
+        )
+        out = read_module(str(py), "Foo.bar")
+        # 直接返回方法体即可，不一定包含 class 头
+        assert "def bar" in out
+        assert "return 1" in out
+
+    def test_ambiguous_method_prefers_qualified(self, tmp_path):
+        py = tmp_path / "m.py"
+        py.write_text(
+            "class A:\n"
+            "    def foo(self):\n"
+            "        return 'A'\n"
+            "\n"
+            "class B:\n"
+            "    def foo(self):\n"
+            "        return 'B'\n"
+        )
+        # 未指定类名时，返回深度优先遍历遇到的第一个定义（A.foo）
+        out1 = read_module(str(py), "foo")
+        assert "return 'A'" in out1
+        assert "return 'B'" not in out1
+
+        # 指定 B.foo 时，返回 B.foo
+        out2 = read_module(str(py), "B.foo")
+        assert "return 'B'" in out2
+        assert "return 'A'" not in out2
 
 
 class TestGrep:
