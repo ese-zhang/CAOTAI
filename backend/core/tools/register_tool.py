@@ -86,12 +86,12 @@ def list_directory(path: str, depth: int) -> list:
 
 @tool_manager.register(
     name="list_modules",
-    description="列出指定文件内的所有类或函数",
+    description="列出指定文件内的所有类或函数，展开层级可设置",
     parameters={
         "type": "object",
         "properties": {
             "file_path": {"type": "string", "description": "要列出的文件路径"},
-            "module_depth": {"type": "integer", "description": "模块的深度,正整数,0为当前文件,1为当前文件的子模块,2为当前文件的子模块的子模块,以此类推"}
+            "module_depth": {"type": "integer", "description": "模块的深度,正整数,0为top，1包含top的子类或方法，以此类推"}
         },
         "required": ["file_path", "module_depth"]
     }

@@ -10,7 +10,7 @@ if __name__ == "__main__":
     from backend.core.tools.register_tool import tools_list
 
     session_id = "sessions_01"
-    db.clear_session(session_id)
+    #db.clear_session(session_id)
 
     agent = basic_agent(
         name="Agent",
