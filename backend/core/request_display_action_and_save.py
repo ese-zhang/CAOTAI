@@ -1,11 +1,23 @@
 import json
 from backend.infra.fileio import save_messages
 from .memory import agent_memory
+from ..infra.database import db
+
+
+def _tool_result_to_plain_text(value) -> str:
+    """将 function calling 的返回值或错误统一转为纯文本，供模型观察。"""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, indent=2)
+    return str(value)
 
 
 def request_display_action_and_save(
     client, # 模型客户端
-    session_path, # 对话历史文件路径
+    session_id, # 对话历史文件路径
     model_settings, # 模型设置
     **kwargs # 其他参数
 ):
@@ -21,13 +33,13 @@ def request_display_action_and_save(
         5. 根据本轮数据，存储至对话历史文件中
         他不构成一个完整的对话, 而是一个完整的思考、执行、观察、保存的流程
         ::param client: 模型客户端
-        ::param session_path: 对话历史文件路径
+        ::param session_id: 对话历史文件路径
         ::param model_settings: 模型设置
         ::param kwargs: 其他参数, 必须符合client的参数要求
     """
     # 0. 初始化
-    assistant_message = agent_memory.start_stream(session_path)
-    messages = agent_memory.recall(session_path)
+    assistant_message = agent_memory.start_stream(session_id)
+    messages = agent_memory.recall(session_id)
     # 1. 请求模型进行思考和工具请求 Request
     stream = client.chat.completions.create(
         model=model_settings["model"],
@@ -48,7 +60,7 @@ def request_display_action_and_save(
         if delta.reasoning_content:
             reasoning_content += delta.reasoning_content
             agent_memory.append_reasoning(
-                session_path,
+                session_id,
                 delta.reasoning_content
                 )
 
@@ -68,7 +80,7 @@ def request_display_action_and_save(
         if delta.content:
             content += delta.content
             agent_memory.append_content(
-                session_path,
+                session_id,
                 delta.content
                 )
     # 将思考、工具请求、内容，写入对话历史
@@ -78,7 +90,7 @@ def request_display_action_and_save(
         ]
 
     agent_memory.end_stream(
-        session_path,
+        session_id,
         tool_calls=final_tool_calls if final_tool_calls else None
         )
 
@@ -95,7 +107,7 @@ def request_display_action_and_save(
             try:
                 args = json.loads(raw_args) if raw_args else {}
             except json.JSONDecodeError as e:
-                tool_result = f"[tool args parse error] {e}"
+                tool_result = f"[tool args parse error] {str(e)}"
             else:
                 tool_fn = tool_registry.get(tool_name)
                 if tool_fn is None:
@@ -104,14 +116,17 @@ def request_display_action_and_save(
                     try:
                         tool_result = tool_fn(**args)
                     except Exception as e:
-                        tool_result = f"[tool execution error] {e}"
+                        tool_result = f"[tool execution error] {str(e)}"
 
-            new_message=dict({"role": "tool",
-                              "content": tool_result,
-                              "tool_call_id": tool_call["id"]})
+            new_message = {
+                "role": "tool",
+                "content": _tool_result_to_plain_text(tool_result),
+                "tool_call_id": tool_call["id"],
+            }
             agent_memory.append_message(
-                session_path,new_message
+                session_id,new_message
                 )
+            print(db.load_messages(session_id)[-1])
     else:
         is_final_answer=True
 
