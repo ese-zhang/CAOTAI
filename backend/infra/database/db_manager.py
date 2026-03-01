@@ -25,6 +25,11 @@ class MessageDB:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            # Migration: add agent_name to sessions if missing
+            try:
+                conn.execute("ALTER TABLE sessions ADD COLUMN agent_name TEXT")
+            except sqlite3.OperationalError:
+                pass  # column already exists
             # 2. 存储单条 Message，增加索引以优化查询
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS messages (
@@ -40,8 +45,60 @@ class MessageDB:
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_session ON messages(session_id)")
+            # 3. Agents table (agent_name PK, role_settings_yaml, system_prompt_text)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS agents (
+                    agent_name TEXT PRIMARY KEY,
+                    role_settings_yaml TEXT,
+                    system_prompt_text TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.commit()
+
+    # ---------- Sessions (agent binding) ----------
+
+    def get_new_session_id(self) -> str:
+        """
+        返回一个之前没有使用过的会话 id(格式 session_<数字>, 取当前最大数字 +1)
+        """
+        cursor = self._get_conn().cursor()
+        cursor.execute("SELECT session_id FROM sessions WHERE session_id LIKE 'session_%'")
+        max_num = 0
+        for row in cursor.fetchall():
+            sid = row["session_id"]
+            try:
+                num = int(sid.split("_", 1)[1])
+                if num > max_num:
+                    max_num = num
+            except (ValueError, IndexError):
+                continue
+        return f"session_{max_num + 1}"
+
+    def create_session_for_agent(self, session_id: str, agent_name: str):
+        """Create a session bound to the agent and append system message. No-op if session already exists."""
+        if self.get_session_agent_name(session_id) is not None:
+            return
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT INTO sessions (session_id, agent_name) VALUES (?, ?)",
+            (session_id, agent_name),
+        )
+        conn.commit()
+        agent = self.get_agent(agent_name)
+        system_prompt_text = (agent.get("system_prompt_text") or "") if agent else ""
+        self.append_message(session_id, {"role": "system", "content": system_prompt_text})
+
+    def get_session_agent_name(self, session_id: str) -> Optional[str]:
+        """Return agent_name for the session, or None if not found."""
+        cursor = self._get_conn().cursor()
+        cursor.execute("SELECT agent_name FROM sessions WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return row["agent_name"]
 
     # ---------- 增量写入接口 ----------
 
@@ -111,3 +168,56 @@ class MessageDB:
         conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
         conn.commit()
         print(f"--- 已清理 Session: {session_id} ---")
+
+    # ---------- Agents ----------
+
+    def upsert_agent(self, agent_name: str, role_settings_yaml: str, system_prompt_text: str):
+        """Insert or replace agent; set updated_at to CURRENT_TIMESTAMP."""
+        conn = self._get_conn()
+        conn.execute("""
+            INSERT OR REPLACE INTO agents (agent_name, role_settings_yaml, system_prompt_text, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        """, (agent_name, role_settings_yaml, system_prompt_text))
+        conn.commit()
+
+    def list_agent_names(self) -> List[str]:
+        """Return list of all agent names in the agents table."""
+        cursor = self._get_conn().cursor()
+        cursor.execute("SELECT agent_name FROM agents")
+        return [row["agent_name"] for row in cursor.fetchall()]
+
+    def get_agent(self, agent_name: str) -> Optional[Dict]:
+        """Return one row as dict with keys agent_name, role_settings_yaml, system_prompt_text, created_at, updated_at, or None."""
+        cursor = self._get_conn().cursor()
+        cursor.execute("SELECT * FROM agents WHERE agent_name = ?", (agent_name,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return {k: row[k] for k in row.keys()}
+
+    def delete_agent(self, agent_name: str):
+        """删除Agent与相关联的对话"""
+        conn = self._get_conn()
+        conn.execute(
+            "DELETE FROM messages WHERE session_id IN (SELECT session_id FROM sessions WHERE agent_name = ?)",
+            (agent_name,),
+        )
+        conn.execute("DELETE FROM sessions WHERE agent_name = ?", (agent_name,))
+        conn.execute("DELETE FROM agents WHERE agent_name = ?", (agent_name,))
+        conn.commit()
+
+    def self_check(self):
+        def run_agent_yaml_self_check() -> None:
+            """当原有的role_settings.yaml被丢失了，从数据库中重新写入(除了llm_setttings设置为默认)"""
+            from pathlib import Path
+            root = Path(__file__).resolve().parents[3]
+            for agent_name in self.list_agent_names():
+                path = root / "agent" / agent_name / "role_setting.yaml"
+                if path.exists():
+                    continue
+                path.parent.mkdir(parents=True, exist_ok=True)
+                row = self.get_agent(agent_name)
+                yaml_content = (row.get("role_settings_yaml") or "").rstrip()
+                body = yaml_content + "\nllm_settings: \"default\"\n"
+                path.write_text(body, encoding="utf-8")
+        run_agent_yaml_self_check()
