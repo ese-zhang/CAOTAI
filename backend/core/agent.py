@@ -92,6 +92,7 @@ class basic_agent:
             """
             system_prompt = ""
             # system_prompt += self.soul + "\n" + self.rules + "\n" + "\n" + tool_manager.get_tool_prompt(self.tools)
-            components = [self.soul, self.rules]
+            skills = "当你要开始一个工作时，需要使用search_skills获取可能的SOP"
+            components = [self.soul, self.rules, skills]
             system_prompt = "\n".join(filter(None, components))
             return {"role": "system", "content": system_prompt}
