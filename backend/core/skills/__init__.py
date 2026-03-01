@@ -1,4 +1,4 @@
-from .skills_manager import SkillsManager
+from .skillsmanager import SkillsManager
 
 skills_manager = SkillsManager()
 
