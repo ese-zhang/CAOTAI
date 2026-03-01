@@ -40,6 +40,7 @@ class MessageDB:
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_session ON messages(session_id)")
+            conn.execute("PRAGMA journal_mode=WAL;")
             conn.commit()
 
     # ---------- 增量写入接口 ----------
@@ -94,11 +95,12 @@ class MessageDB:
             msg = {
                 "role": row["role"],
                 "content": row["content"],
-                "model_extra": {"reasoning_content": row["reasoning_content"]}
             }
             if row["tool_calls_json"]:
                 msg["tool_calls"] = json.loads(row["tool_calls_json"])
             results.append(msg)
+            if row["reasoning_content"]:
+                msg["reasoning_content"] = row["reasoning_content"]
         return results
 
     # 在 db_manager.py 的 MessageDB 类中添加

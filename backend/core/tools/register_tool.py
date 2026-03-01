@@ -6,6 +6,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from ..skills import skills_manager
+
 tools_list = [
     "list_directory",
     "list_modules",
@@ -16,6 +18,11 @@ tools_list = [
     "create_file",
     "run_shell_command",
     "get_weather",
+    "load_skill",
+    "search_skills",
+    "load_skill_asset",
+    "get_skill_script_path",
+    "list_skill_assets",
 ]
 # read_file 行数差距阈值，超过则只返回前 MAX_READ_LINES 行并提示
 MAX_READ_LINES = 500
@@ -35,6 +42,84 @@ GREP_CONTEXT_LINES = 2
 )
 def get_weather(city: str):
     return f"{city}今天晴天"
+
+
+@tool_manager.register(
+    name="load_skill",
+    description="按名称加载技能全文（SKILL.md）。输入技能名（忽略大小写），返回该技能的完整指南内容。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "skill_name": {"type": "string", "description": "技能名称，与技能目录名一致，如 data-analysis"}
+        },
+        "required": ["skill_name"]
+    }
+)
+def load_skill(skill_name: str) -> str:
+    return skills_manager.get_skill_content(skill_name)
+
+
+@tool_manager.register(
+    name="search_skills",
+    description="按关键词搜索技能。输入工作描述或精炼名词（如数据分析），返回匹配度最高的前 n 条技能的名称与描述。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "搜索词，如数据分析、代码审查"},
+            "n": {"type": "integer", "description": "返回条数，默认 5"}
+        },
+        "required": ["query"]
+    }
+)
+def search_skills(query: str, n: int = 5):
+    return skills_manager.search_skills(query, n)
+
+
+@tool_manager.register(
+    name="load_skill_asset",
+    description="加载技能目录内某文件的文本内容，用于规范或模板。路径须为 references/、assets/ 或 scripts/ 下的相对路径，如 references/SPEC.md。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "skill_name": {"type": "string", "description": "技能名称"},
+            "relative_path": {"type": "string", "description": "相对路径，如 references/REFERENCE.md"}
+        },
+        "required": ["skill_name", "relative_path"]
+    }
+)
+def load_skill_asset(skill_name: str, relative_path: str) -> str:
+    return skills_manager.get_skill_asset(skill_name, relative_path)
+
+
+@tool_manager.register(
+    name="get_skill_script_path",
+    description="返回技能 scripts/ 下某脚本的绝对路径，供 run_shell_command 执行（如文件比对、格式校验）。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "skill_name": {"type": "string", "description": "技能名称"},
+            "script_name": {"type": "string", "description": "脚本文件名，如 compare.py"}
+        },
+        "required": ["skill_name", "script_name"]
+    }
+)
+def get_skill_script_path(skill_name: str, script_name: str) -> str:
+    return SkillsManager().get_skill_script_path(skill_name, script_name)
+
+
+@tool_manager.register(
+    name="list_skill_assets",
+    description="列出该技能下 references/、scripts/、assets/ 中的相对路径，便于发现可加载的模板或可执行脚本。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "skill_name": {"type": "string", "description": "技能名称"}
+        },
+        "required": ["skill_name"]
+    }
+)
+def list_skill_assets(skill_name: str):
+    return SkillsManager().list_skill_assets(skill_name)
 
 
 @tool_manager.register(
