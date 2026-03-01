@@ -3,11 +3,10 @@
 """
 from openai import OpenAI
 from .request_display_action_and_save import request_display_action_and_save
-from ..infra.fileio import save_messages
 from ..infra.predefined.llm_settings_property import LLMSettingsProperty
 from .tools import tool_manager
 from ..infra.predefined.model_settings_property import ModelSettings
-
+from ..infra.database import db
 class basic_agent:
     """
         一个Agent基础类
@@ -67,17 +66,18 @@ class basic_agent:
         """
             运行Agent, 指定RDAS过程, 直到没有进一步动作, 给出最终答案
             request: 用户请求,包括用户输入的文本，以及上下文存储的文件路径
-            格式为: {"text": "用户输入的文本", "session_path": "上下文存储的文件路径"}
+            格式为: {"text": "用户输入的文本", "session_id": "上下文存储的文件路径"}
             运行这个指令，等效于用户输入了命令，并且按下了回车键
         """
-        messages = self.prompt_builder()
-        messages.append({"role": "user", "content": request["text"]})
-        save_messages(messages, request["session_path"])
+        system = self.prompt_builder()
+        db.append_message(request["session_id"], system)
+        messages={"role": "user", "content": request["text"]}
+        db.append_message(request["session_id"], messages)
         # while循环，直到返回值是False
         while True:
             is_final_answer = request_display_action_and_save(
                 client=self.client,
-                session_path=request["session_path"],
+                session_id=request["session_id"],
                 model_settings=self.get_payload()
             )
             if is_final_answer:
@@ -94,4 +94,4 @@ class basic_agent:
             # system_prompt += self.soul + "\n" + self.rules + "\n" + "\n" + tool_manager.get_tool_prompt(self.tools)
             components = [self.soul, self.rules]
             system_prompt = "\n".join(filter(None, components))
-            return [{"role": "system", "content": system_prompt}]
+            return {"role": "system", "content": system_prompt}

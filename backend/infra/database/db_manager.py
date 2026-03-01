@@ -34,6 +34,7 @@ class MessageDB:
                     content TEXT,
                     reasoning_content TEXT,
                     tool_calls_json TEXT,
+                    tool_call_id TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
                 )
@@ -50,16 +51,19 @@ class MessageDB:
         conn.execute("INSERT OR IGNORE INTO sessions (session_id) VALUES (?)", (session_id,))
         
         # 解析数据（兼容你现有的字典结构）
+        # 在 append_message 方法内增加解析
+        tool_call_id = msg.get("tool_call_id")  # 获取字段
         role = msg.get("role")
         content = msg.get("content")
         model_extra = msg.get("model_extra", {})
         reasoning = model_extra.get("reasoning_content", "")
         tool_calls = json.dumps(msg.get("tool_calls")) if msg.get("tool_calls") else None
 
+        # 并在 SQL 执行时存入
         conn.execute("""
-            INSERT INTO messages (session_id, role, content, reasoning_content, tool_calls_json)
-            VALUES (?, ?, ?, ?, ?)
-        """, (session_id, role, content, reasoning, tool_calls))
+            INSERT INTO messages (session_id, role, content, reasoning_content, tool_calls_json, tool_call_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (session_id, role, content, reasoning, tool_calls, tool_call_id))
         conn.commit()
 
     def update_last_message(self, session_id: str, content: str, reasoning: str, tool_calls: Optional[List] = None):

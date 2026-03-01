@@ -90,7 +90,8 @@ class MemoryManager:
                 "model_extra": {"reasoning_content": ""}
                 }
             with state.lock:
-                state.add_message(assistant_message)  # 内存中增加
+                state.add_message(assistant_message)
+                db.append_message(session_path, assistant_message)
 
             return assistant_message
 
@@ -130,28 +131,20 @@ class MemoryManager:
             state.mark_dirty()
 
     def append_message(self, session_path: str, message: Dict):
-        """
-        向 session 追加一条完整 message。
-        语义：
-        - 如果 session 仍在 streaming，则先 end_stream
-        - append_message 等价于“一个新的非 streaming 消息”
-        """
-
-        # 1. 如果还在 streaming，先 finalize
+        # 1. 尝试获取内存状态
         state = self.sessions.get(session_path)
+
         if state:
-            # 不传 tool_calls，纯 finalize
-            self.end_stream(session_path)
-
-        # 2. 读取完整历史
-        try:
-            messages = db.load_messages(session_path)
-            if not isinstance(messages, list):
-                messages = []
-        except FileNotFoundError:
-            messages = []
-
-        # 4. 立即落盘（append_message 是强一致语义）
+            with state.lock:
+                # 同步最后的状态
+                last_msg = state.messages[-1]
+                db.update_last_message(
+                    session_path,
+                    content=last_msg.get("content"),
+                    reasoning=last_msg.get("model_extra", {}).get("reasoning_content")
+                )
+            with self.global_lock:
+                self.sessions.pop(session_path, None)
         db.append_message(session_path, message)
 
     # ---------- 读取 ----------
@@ -171,7 +164,7 @@ class MemoryManager:
         with state.lock:
             # 这里做 memory 策略处理，而不是直接返回全量 messages
             messages = state.messages
-            filtered = self.memory_filter(messages)
+            filtered = messages#self.memory_filter(messages)
             return filtered
 
     @staticmethod
@@ -182,7 +175,7 @@ class MemoryManager:
         - 热门 message（被访问/引用次数高）保留
         - 可选：embedding 检索相关内容
         """
-        recent = messages[-5:]
+        recent = messages[-100:]
         hot = sorted(messages, key=lambda m: m.get("access_count", 0), reverse=True)
         # 合并去重
         seen_ids = set()

@@ -49,6 +49,6 @@ if __name__ == "__main__":
             "get_weather": get_weather
         }
     }
-    request_display_action_and_save(client=client, session_path=session_id, model_settings=model_settings)
+    request_display_action_and_save(client=client, session_id=session_id, model_settings=model_settings)
     print(db.load_messages(session_id=session_id))
     #request_display_action_and_save(client=client, session_path="sessions.json", model_settings=model_settings)
