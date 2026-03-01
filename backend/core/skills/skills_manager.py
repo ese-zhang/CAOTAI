@@ -13,6 +13,9 @@ def _get_document_root():
 class SkillsManager:
     def __init__(self):
         self.skills_root = _get_document_root() / "skills"
+        # 检查文件夹是否存在，不存在则创建
+        if not self.skills_root.exists():
+            self.skills_root.mkdir(parents=True)
 
     def list_skills(self):
         if not self.skills_root.exists() or not self.skills_root.is_dir():
