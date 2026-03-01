@@ -20,9 +20,18 @@ def delete_agent():
     """
     pass
 
-def get_agent_property():
+def get_agent_property(agent_name: str)->dict:
     """
         这个接口用于从硬盘中获取一个Agent的属性
+        参数为Agent名称, 返回一个字典, 字典的key为Agent的属性, value为Agent的属性值, 如果Agent不存在, 返回None
+        字典的key为:
+        - name: Agent名称
+        - description: Agent描述
+        - skills: Agent技能列表
+        - rules: Agent规则列表
+        - soul: Agent灵魂
+        - tools: Agent工具列表
+        - llm_settings: Agent模型设置
     """
     pass
 

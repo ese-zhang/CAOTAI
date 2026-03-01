@@ -1,7 +1,7 @@
 """
     这个接口定义了在UI中如何去与Agent进行对话, 如开始对话、继续对话、删除结束对话
 """
-from backend.infra.database.db_manager import db
+from backend.infra.database import db
 from typing import Tuple
 
 def start_chat(agent_name: str)->Tuple[str, str]:
