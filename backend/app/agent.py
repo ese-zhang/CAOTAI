@@ -2,12 +2,12 @@
     在这个代码中我们定义了一个Agent基类, 这个基础类定义了Agent的属性,与运行方法
 """
 from openai import OpenAI
-from .request_display_action_and_save import request_display_action_and_save
-from ..infra.config import DEFAULT_MODEL, DEFAULT_API_KEY, DEFAULT_URL
-from ..infra.predefined.llm_settings_property import LLMSettingsProperty
-from .tools import tool_manager
-from ..infra.predefined.model_settings_property import ModelSettings
-from ..infra.database import db
+from backend.app.service.request_display_action_and_save import request_display_action_and_save
+from backend.config import DEFAULT_MODEL, DEFAULT_API_KEY, DEFAULT_URL
+from backend.domain.predefined.property import LLMSettingsProperty
+from backend.core.tools import tool_manager
+from backend.domain.predefined.model_settings_property import ModelSettings
+from backend.infra.database import db
 class basic_agent:
     """
         一个Agent基础类

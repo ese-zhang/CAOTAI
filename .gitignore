@@ -2,7 +2,7 @@
 .venv
 .idea
 playground
-config/settings.yaml
+backend/config/settings.yaml
 doc/*.json
 _test_sessions
 document

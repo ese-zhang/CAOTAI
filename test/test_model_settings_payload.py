@@ -1,11 +1,10 @@
 import pytest
-from typing import Callable
 from pydantic import ValidationError
 
-from backend.core.agent import basic_agent
+from backend.app.agent import basic_agent
 from backend.core.tools import ToolManager, tool_manager
-from backend.infra.predefined.llm_settings_property import LLMSettingsProperty
-from backend.infra.predefined.model_settings_property import ModelSettings, PropertySchema
+from backend.domain.predefined.property import LLMSettingsProperty
+from backend.domain.predefined.model_settings_property import ModelSettings, PropertySchema
 
 
 # --- 1. ModelSettings 结构测试 (Schema Validation) ---

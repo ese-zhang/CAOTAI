@@ -1,4 +1,4 @@
-from .skillsmanager import SkillsManager
+from backend.infra.skills.skillsmanager import SkillsManager
 
 skills_manager = SkillsManager()
 

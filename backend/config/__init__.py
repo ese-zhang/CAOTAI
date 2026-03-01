@@ -1,13 +1,14 @@
-from ..predefined.llm_settings_property import LLMSettingsProperty
+from ..domain.predefined.property import LLMSettingsProperty
 from .configmanager import ConfigManager
 from pathlib import Path
 import shutil
-setting_yaml_path = Path(__file__).resolve().parents[3] / "config" / "settings.yaml"
+setting_yaml_path = Path(__file__).resolve().parent / "settings.yaml"
 # 加载默认配置 如果配置文件不存在，则基于模板创建，并给出warning
 if not setting_yaml_path.exists():
     print("settings.yaml not found, creating from template")
-    setting_template_path = Path(__file__).parent.parent.parent.parent / "config" / "settings_template.yaml"
+    setting_template_path = Path(__file__).resolve().parent/ "template" / "settings_template.yaml"
     shutil.copy(setting_template_path, setting_yaml_path)
+    print(setting_template_path)
     default_settings = ConfigManager(path=setting_yaml_path)
 else:
     default_settings = ConfigManager(path=setting_yaml_path)

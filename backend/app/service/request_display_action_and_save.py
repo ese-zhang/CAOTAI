@@ -2,8 +2,8 @@ import json
 from typing import Callable
 
 from backend.infra.fileio import save_messages
-from .memory import agent_memory
-from ..infra.database import db
+from backend.core.memory import agent_memory
+from backend.infra.database import db
 
 
 def _tool_result_to_plain_text(value) -> str:

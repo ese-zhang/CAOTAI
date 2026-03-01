@@ -1,8 +1,7 @@
 from openai import OpenAI
-from backend.infra.config import DEFAULT_API_KEY, DEFAULT_URL, DEFAULT_MODEL  # 导入默认配置
-from backend.core.request_display_action_and_save import request_display_action_and_save
+from backend.config import DEFAULT_API_KEY, DEFAULT_URL, DEFAULT_MODEL  # 导入默认配置
+from backend.app.service.request_display_action_and_save import request_display_action_and_save
 from backend.infra.database import db
-from backend.infra.fileio import save_messages
 
 """
     这是一个示例, 展示如何使用RDAS模型

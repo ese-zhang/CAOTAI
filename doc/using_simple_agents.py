@@ -1,9 +1,8 @@
 """
 在这个代码中我们完成understand_RDAS.py中的示例,使用简单Agent完成对话,不手动循环调用
 """
-from backend.core.agent import basic_agent
+from backend.app.agent import basic_agent
 from backend.infra.database import db
-from backend.infra.predefined.llm_settings_property import LLMSettingsProperty
 
 if __name__ == "__main__":
     #llm_settings = LLMSettingsProperty()

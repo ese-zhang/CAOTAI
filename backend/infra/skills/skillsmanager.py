@@ -6,7 +6,7 @@ import yaml
 
 
 def _get_document_root():
-    from backend.infra.config import DOCUMENT_ROOT
+    from backend.config import DOCUMENT_ROOT
     return Path(DOCUMENT_ROOT)
 
 
