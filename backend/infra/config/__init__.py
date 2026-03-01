@@ -1,4 +1,4 @@
-from backend.infra.predefined.llm_settings_property import LLMSettingsProperty
+from ..predefined.llm_settings_property import LLMSettingsProperty
 from .configmanager import ConfigManager
 from pathlib import Path
 import shutil

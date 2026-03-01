@@ -1,4 +1,6 @@
 import json
+from typing import Callable
+
 from backend.infra.fileio import save_messages
 from .memory import agent_memory
 from ..infra.database import db
@@ -19,6 +21,7 @@ def request_display_action_and_save(
     client, # 模型客户端
     session_id, # 对话历史文件路径
     model_settings, # 模型设置
+    token:Callable[[str],None],
     **kwargs # 其他参数
 ):
     """
@@ -52,6 +55,7 @@ def request_display_action_and_save(
     tool_calls_collector = {}
     reasoning_content = ""
     content = ""
+    think_flag = 0
     for chunk in stream:
         delta = chunk.choices[0].delta
         if not delta:
@@ -63,9 +67,17 @@ def request_display_action_and_save(
                 session_id,
                 delta.reasoning_content
                 )
+            if think_flag==0:
+                token("<think>"+delta.reasoning_content)
+                think_flag=1
+            elif think_flag==1:
+                token(delta.reasoning_content)
 
         # 接收工具请求
         if delta.tool_calls:
+            if think_flag==1:
+                token("</think>\n")
+                think_flag=-1
             for tc_delta in delta.tool_calls:
                 index = tc_delta.index
                 if index not in tool_calls_collector:
@@ -78,11 +90,15 @@ def request_display_action_and_save(
                     tool_calls_collector[index]["function"]["arguments"] += tc_delta.function.arguments
         # 接收正文内容
         if delta.content:
+            if think_flag == 1:
+                token("</think>\n")
+                think_flag = -1
             content += delta.content
             agent_memory.append_content(
                 session_id,
                 delta.content
                 )
+            token(delta.content)
     # 将思考、工具请求、内容，写入对话历史
     final_tool_calls = [
         tool_calls_collector[i]
@@ -117,17 +133,18 @@ def request_display_action_and_save(
                         tool_result = tool_fn(**args)
                     except Exception as e:
                         tool_result = f"[tool execution error] {str(e)}"
-
+            tool_result=_tool_result_to_plain_text(tool_result)
             new_message = {
                 "role": "tool",
-                "content": _tool_result_to_plain_text(tool_result),
+                "content": tool_result,
                 "tool_call_id": tool_call["id"],
             }
+            token(tool_result)
             agent_memory.append_message(
                 session_id,new_message
                 )
-            print(db.load_messages(session_id)[-1])
+            #print(db.load_messages(session_id)[-1])
     else:
         is_final_answer=True
-
+    token("\n")
     return is_final_answer

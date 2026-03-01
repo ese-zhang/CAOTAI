@@ -3,6 +3,7 @@
 """
 from openai import OpenAI
 from .request_display_action_and_save import request_display_action_and_save
+from ..infra.config import DEFAULT_MODEL, DEFAULT_API_KEY, DEFAULT_URL
 from ..infra.predefined.llm_settings_property import LLMSettingsProperty
 from .tools import tool_manager
 from ..infra.predefined.model_settings_property import ModelSettings
@@ -28,7 +29,7 @@ class basic_agent:
         rules: list[str], # Agent的规则，用于描述Agent的行为与策略
         soul: str, # Agent的灵魂，用于配置Agent的行为与策略
         tools: list[str], # Agent的工具列表
-        llm_settings: LLMSettingsProperty = LLMSettingsProperty(), # llm的配置，默认选择系统默认配置
+        llm_settings: LLMSettingsProperty=None, # llm的配置，默认选择系统默认配置
         **kwargs, # 其他参数
         ): # 初始化Agent的属性, 包括名称、描述、技能、规则、系统提示、工具、模型设置
         self.name = name
@@ -37,16 +38,20 @@ class basic_agent:
         self.rules = "\n".join(rules)
         self.soul = soul
         self.tools = tools
-        self.llm_settings = llm_settings
+        if llm_settings is None:
+            self.llm_settings = LLMSettingsProperty(model=DEFAULT_MODEL,url=DEFAULT_URL,api_key=DEFAULT_API_KEY)
+        else:
+            self.llm_settings = llm_settings
+        #self.llm_settings = llm_settings
 
         # 1. 从管理器获取允许使用的工具定义和可执行函数列表
         tools_defs, registry = tool_manager.get_payload_components(tools)
         
         # 2. 构建类型安全的 ModelSettings 对象
         self.model_settings = ModelSettings(
-            model=llm_settings.model,
-            url=llm_settings.url,
-            api_key=llm_settings.api_key,
+            model=self.llm_settings.model,
+            url=self.llm_settings.url,
+            api_key=self.llm_settings.api_key,
             tools=tools_defs, # 自动解析为 ToolDefinition 列表
             tool_registry=registry
         )
@@ -78,7 +83,8 @@ class basic_agent:
             is_final_answer = request_display_action_and_save(
                 client=self.client,
                 session_id=request["session_id"],
-                model_settings=self.get_payload()
+                model_settings=self.get_payload(),
+                token=lambda t: print(t, end="", flush=True)
             )
             if is_final_answer:
                 break

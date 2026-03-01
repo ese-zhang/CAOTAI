@@ -81,7 +81,7 @@ def test_agent_payload_generation():
     def get_stock(): pass
 
     # 模拟外部传入的配置
-    base_config = LLMSettingsProperty(model="deepseek-V3",api_key="sk-123")
+    base_config = LLMSettingsProperty(model="deepseek-V3",api_key="sk-123",url="https://api.deepseek.ai")
 
     agent = basic_agent(
         name="金融助手",
@@ -113,7 +113,7 @@ def test_agent_payload_generation_with_error_tools():
     def get_stock(): pass
 
     # 模拟外部传入的配置
-    base_config = LLMSettingsProperty(model="deepseek-V3",api_key="sk-123")
+    base_config = LLMSettingsProperty(model="deepseek-V3",api_key="sk-123",url="sk-123")
 
     with pytest.warns(UserWarning):
         agent = basic_agent(
