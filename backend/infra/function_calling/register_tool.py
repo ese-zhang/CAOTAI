@@ -1,4 +1,4 @@
-from . import tool_manager
+from backend.infra.function_calling import tool_manager
 import ast
 import difflib
 import os
@@ -6,7 +6,8 @@ import re
 import subprocess
 from pathlib import Path
 
-from ..skills import skills_manager
+from backend.app import skills_manager
+from backend.infra.skills.skillsmanager import SkillsManager
 
 tools_list = [
     "list_directory",

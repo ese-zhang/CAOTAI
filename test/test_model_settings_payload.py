@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from backend.app.agent import basic_agent
-from backend.core.tools import ToolManager, tool_manager
+from backend.infra.function_calling import ToolManager, tool_manager
 from backend.domain.predefined.property import LLMSettingsProperty
 from backend.domain.predefined.model_settings_property import ModelSettings, PropertySchema
 

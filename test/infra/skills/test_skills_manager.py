@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 # 先导入包以加载子模块，否则 sys.modules 中尚无 skills_manager 模块
-import backend.core.skills  # noqa: F401
+import backend.infra.skills  # noqa: F401
 # 包内还导出了 skills_manager 实例，patch 须作用在定义 _get_document_root 的模块上
 _skills_module = sys.modules["backend.infra.skills.skillsmanager"]
 from backend.infra.skills.skillsmanager import SkillsManager

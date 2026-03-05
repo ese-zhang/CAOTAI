@@ -1,14 +1,10 @@
 """
-backend.core.tools.register_tool 全覆盖测试
+backend.infra.function_calling.register_tool 全覆盖测试
 """
 from unittest.mock import patch
 
-
-import pytest
-
-from backend.core.tools.register_tool import (
+from backend.infra.function_calling.register_tool import (
     MAX_READ_LINES,
-    GREP_CONTEXT_LINES,
     get_weather,
     list_directory,
     list_modules,
@@ -66,7 +62,7 @@ class TestListDirectory:
         assert not any("very_deep" in r for r in result)
 
     def test_list_directory_exception_returns_empty(self):
-        with patch("backend.core.tools.register_tool.Path") as MockPath:
+        with patch("backend.infra.function_calling.register_tool.Path") as MockPath:
             mock_p = MockPath.return_value
             mock_p.resolve.side_effect = OSError("bad")
             assert list_directory("any", 0) == []
@@ -149,7 +145,7 @@ class TestReadFile:
         assert "分批读取" in out
 
     def test_read_file_exception_returns_empty(self):
-        with patch("backend.core.tools.register_tool.Path") as MockPath:
+        with patch("backend.infra.function_calling.register_tool.Path") as MockPath:
             mock_p = MockPath.return_value
             mock_p.resolve.return_value = mock_p
             mock_p.exists.return_value = True
@@ -191,7 +187,7 @@ class TestReadModule:
         assert "语法错误" in read_module(str(py), "x")
 
     def test_read_module_exception_returns_failure_message(self):
-        with patch("backend.core.tools.register_tool.Path") as MockPath:
+        with patch("backend.infra.function_calling.register_tool.Path") as MockPath:
             mock_p = MockPath.return_value
             mock_p.resolve.return_value = mock_p
             mock_p.exists.return_value = True
@@ -271,7 +267,7 @@ class TestGrep:
         assert result[1]["line"] == 4
 
     def test_grep_exception_returns_empty(self):
-        with patch("backend.core.tools.register_tool.Path") as MockPath:
+        with patch("backend.infra.function_calling.register_tool.Path") as MockPath:
             mock_p = MockPath.return_value
             mock_p.resolve.return_value = mock_p
             mock_p.exists.return_value = True
@@ -346,7 +342,7 @@ class TestApplyDiff:
         assert out == ""
 
     def test_apply_diff_exception_returns_empty(self):
-        with patch("backend.core.tools.register_tool.Path") as MockPath:
+        with patch("backend.infra.function_calling.register_tool.Path") as MockPath:
             mock_p = MockPath.return_value
             mock_p.resolve.return_value = mock_p
             mock_p.exists.return_value = True
@@ -370,7 +366,7 @@ class TestCreateFile:
     def test_invalid_path_returns_false(self):
         # 通过 mock 使 mkdir 或 write_text 抛出异常，验证返回 False
         from unittest.mock import patch, MagicMock
-        with patch("backend.core.tools.register_tool.Path") as MockPath:
+        with patch("backend.infra.function_calling.register_tool.Path") as MockPath:
             mock_path = MagicMock()
             mock_path.resolve.return_value = mock_path
             mock_path.exists.return_value = False
@@ -381,7 +377,7 @@ class TestCreateFile:
     def test_create_file_write_exception_returns_false(self, tmp_path):
         from unittest.mock import patch, MagicMock
         p = tmp_path / "new.txt"
-        with patch("backend.core.tools.register_tool.Path") as MockPath:
+        with patch("backend.infra.function_calling.register_tool.Path") as MockPath:
             mock_path = MagicMock()
             mock_path.resolve.return_value = mock_path
             mock_path.exists.return_value = False
@@ -400,7 +396,7 @@ class TestRunShellCommand:
         out = run_shell_command("exit 1")
         assert isinstance(out, str)
 
-    @patch("backend.core.tools.register_tool.subprocess.run")
+    @patch("backend.infra.function_calling.register_tool.subprocess.run")
     def test_exception_returns_str(self, mock_run):
         mock_run.side_effect = OSError("bad")
         out = run_shell_command("anything")
@@ -411,43 +407,43 @@ class TestToolManagerRegistration:
     """确保所有工具均在 tool_manager 中注册并可被调用"""
 
     def test_get_weather_registered(self):
-        from backend.core.tools import tool_manager
+        from backend.infra.function_calling import tool_manager
         tools_list, registry = tool_manager.get_payload_components(["get_weather"])
         assert len(tools_list) == 1
         assert "get_weather" in registry
         assert registry["get_weather"]("北京") == "北京今天晴天"
 
     def test_list_directory_registered(self):
-        from backend.core.tools import tool_manager
+        from backend.infra.function_calling import tool_manager
         tools_list, registry = tool_manager.get_payload_components(["list_directory"])
         assert "list_directory" in registry
 
     def test_list_modules_registered(self):
-        from backend.core.tools import tool_manager
+        from backend.infra.function_calling import tool_manager
         tools_list, registry = tool_manager.get_payload_components(["list_modules"])
         assert "list_modules" in registry
 
     def test_read_file_registered(self):
-        from backend.core.tools import tool_manager
+        from backend.infra.function_calling import tool_manager
         tools_list, registry = tool_manager.get_payload_components(["read_file"])
         assert "read_file" in registry
 
     def test_read_module_registered(self):
-        from backend.core.tools import tool_manager
+        from backend.infra.function_calling import tool_manager
         tools_list, registry = tool_manager.get_payload_components(["read_module"])
         assert "read_module" in registry
 
     def test_grep_registered(self):
-        from backend.core.tools import tool_manager
+        from backend.infra.function_calling import tool_manager
         tools_list, registry = tool_manager.get_payload_components(["grep"])
         assert "grep" in registry
 
     def test_apply_diff_registered(self):
-        from backend.core.tools import tool_manager
+        from backend.infra.function_calling import tool_manager
         tools_list, registry = tool_manager.get_payload_components(["apply_diff"])
         assert "apply_diff" in registry
 
     def test_create_file_registered(self):
-        from backend.core.tools import tool_manager
+        from backend.infra.function_calling import tool_manager
         tools_list, registry = tool_manager.get_payload_components(["create_file"])
         assert "create_file" in registry

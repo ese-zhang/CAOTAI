@@ -6,7 +6,7 @@ from backend.infra.database import db
 
 if __name__ == "__main__":
     #llm_settings = LLMSettingsProperty()
-    from backend.core.tools.register_tool import tools_list
+    from backend.infra.function_calling.register_tool import tools_list
 
     session_id = "sessions_01"
     db.clear_session(session_id)

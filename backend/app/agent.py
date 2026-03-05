@@ -5,7 +5,8 @@ from openai import OpenAI
 from backend.app.service.request_display_action_and_save import request_display_action_and_save
 from backend.config import DEFAULT_MODEL, DEFAULT_API_KEY, DEFAULT_URL
 from backend.domain.predefined.property import LLMSettingsProperty
-from backend.core.tools import tool_manager
+from backend.infra.function_calling import tool_manager
+import backend.infra.function_calling.register_tool  # noqa: F401  ensure tools registered before get_payload_components
 from backend.domain.predefined.model_settings_property import ModelSettings
 from backend.infra.database import db
 class basic_agent:
