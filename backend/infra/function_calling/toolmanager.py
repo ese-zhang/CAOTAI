@@ -1,6 +1,8 @@
-import inspect
 import warnings
 from typing import Callable, Dict, List
+
+# 约定：注册的 callable 签名为 (ctx: ToolContext, **kwargs) -> Any，便于与外界解耦、可插拔测试
+# 执行层负责构建 ToolContext 并传入，工具内部不依赖全局实例
 
 
 class ToolManager:
@@ -10,7 +12,7 @@ class ToolManager:
 
     def register(self, name: str, description: str, parameters: dict):
         """
-        手动注册工具及其 Schema
+        注册工具：func 签名为 (ctx: ToolContext, **kwargs)，由执行层注入 ctx。
         """
 
         def decorator(func: Callable):

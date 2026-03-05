@@ -1,6 +1,9 @@
 import json
-from typing import Callable
+from pathlib import Path
+from typing import Callable, Optional
 
+from backend.config import DOCUMENT_ROOT
+from backend.infra.function_calling.context import ToolContext
 from backend.infra.streambuffer import stream_buffer
 
 
@@ -16,11 +19,12 @@ def _tool_result_to_plain_text(value) -> str:
 
 
 def request_display_action_and_save(
-    client, # 模型客户端
-    session_id, # 对话历史文件路径
-    model_settings, # 模型设置
-    token:Callable[[str],None],
-    **kwargs # 其他参数
+    client,  # 模型客户端
+    session_id,  # 对话历史文件路径
+    model_settings,  # 模型设置
+    token: Callable[[str], None],
+    agent_context: Optional[dict] = None,  # workspace_root, allowed_tools, agent_id, skills_provider 等
+    **kwargs
 ):
     """
         这个代码是模型一轮思考的基石
@@ -109,10 +113,30 @@ def request_display_action_and_save(
         )
 
     # 构造要存入 json 的 message
-    if len(final_tool_calls)>0:
-        is_final_answer=False
-        # 3. 执行工具 Action and Observe
+    if len(final_tool_calls) > 0:
+        is_final_answer = False
+        # 3. 执行工具 Action and Observe（带上下文与权限）
         tool_registry = model_settings.get("tool_registry", {})
+        allowed_tools = None
+        if agent_context:
+            allowed_tools = agent_context.get("allowed_tools")
+            if allowed_tools is not None:
+                allowed_tools = set(allowed_tools)
+        if allowed_tools is None:
+            allowed_tools = set(tool_registry.keys())
+
+        workspace_root = None
+        if agent_context and agent_context.get("workspace_root") is not None:
+            workspace_root = Path(agent_context["workspace_root"])
+        if workspace_root is None:
+            workspace_root = Path(DOCUMENT_ROOT)
+
+        ctx = ToolContext(
+            workspace_root=workspace_root,
+            agent_id=agent_context.get("agent_id", "") if agent_context else "",
+            session_id=session_id,
+            skills_provider=agent_context.get("skills_provider") if agent_context else None,
+        )
 
         for tool_call in tool_calls_collector.values():
             tool_name = tool_call["function"]["name"]
@@ -123,15 +147,20 @@ def request_display_action_and_save(
             except json.JSONDecodeError as e:
                 tool_result = f"[tool args parse error] {str(e)}"
             else:
-                tool_fn = tool_registry.get(tool_name)
-                if tool_fn is None:
-                    tool_result = f"[unknown tool] {tool_name}"
+                if tool_name not in allowed_tools:
+                    tool_result = f"[Permission denied: tool '{tool_name}' is not allowed for this agent.]"
                 else:
-                    try:
-                        tool_result = tool_fn(**args)
-                    except Exception as e:
-                        tool_result = f"[tool execution error] {str(e)}"
-            tool_result=_tool_result_to_plain_text(tool_result)
+                    tool_fn = tool_registry.get(tool_name)
+                    if tool_fn is None:
+                        tool_result = f"[unknown tool] {tool_name}"
+                    else:
+                        try:
+                            tool_result = tool_fn(ctx, **args)
+                        except PermissionError as e:
+                            tool_result = f"[Permission denied] {e}"
+                        except Exception as e:
+                            tool_result = f"[tool execution error] {str(e)}"
+            tool_result = _tool_result_to_plain_text(tool_result)
             new_message = {
                 "role": "tool",
                 "content": tool_result,

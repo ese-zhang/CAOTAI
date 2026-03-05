@@ -47,8 +47,12 @@ def test_property_schema_recursive():
 # --- 2. ToolManager 注册逻辑测试 ---
 
 def test_tool_registration():
-    """测试工具是否能正确注册并生成 Payload 组件"""
+    """测试工具是否能正确注册并生成 Payload 组件（约定签名为 ctx, **kwargs）"""
+    from pathlib import Path
+    from backend.infra.function_calling.context import ToolContext
+
     tm = ToolManager()
+    ctx = ToolContext(workspace_root=Path.cwd())
 
     @tm.register(
         name="add",
@@ -59,14 +63,14 @@ def test_tool_registration():
             "required": ["a", "b"]
         }
     )
-    def add_func(a, b):
+    def add_func(ctx, a, b):
         return a + b
 
     defs, registry = tm.get_payload_components(["add"])
 
     assert len(defs) == 1
     assert defs[0]["function"]["name"] == "add"
-    assert registry["add"](1, 2) == 3
+    assert registry["add"](ctx, 1, 2) == 3
 
 
 # --- 3. Agent 集成与 Payload 生成测试 ---
@@ -75,9 +79,9 @@ def test_agent_payload_generation():
     """测试从 Agent 初始化到最终 Payload 字典的转换"""
     tm = tool_manager
 
-    # 注册一个模拟工具
+    # 注册一个模拟工具（签名为 ctx, **kwargs）
     @tm.register("get_stock", "获取股价", {"type": "object", "properties": {}})
-    def get_stock(): pass
+    def get_stock(ctx, **kwargs): pass
 
     # 模拟外部传入的配置
     base_config = LLMSettingsProperty(model="deepseek-V3",api_key="sk-123",url="https://api.deepseek.ai")
@@ -107,9 +111,9 @@ def test_agent_payload_generation_with_error_tools():
     """测试tool列表找不到工具的报错"""
     tm = tool_manager
 
-    # 注册一个错误的模拟工具
+    # 注册一个错误的模拟工具（签名为 ctx, **kwargs）
     @tm.register("get_stocsk", "获取股价", {"type": "object", "properties": {}})
-    def get_stock(): pass
+    def get_stock(ctx, **kwargs): pass
 
     # 模拟外部传入的配置
     base_config = LLMSettingsProperty(model="deepseek-V3",api_key="sk-123",url="sk-123")

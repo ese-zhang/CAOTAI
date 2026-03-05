@@ -5,10 +5,13 @@ from openai import OpenAI
 from backend.app.service.request_display_action_and_save import request_display_action_and_save
 from backend.config import DEFAULT_MODEL, DEFAULT_API_KEY, DEFAULT_URL
 from backend.domain.predefined.property import LLMSettingsProperty
+from backend.app import skills_manager
 from backend.infra.function_calling import tool_manager
 import backend.infra.function_calling.register_tool  # noqa: F401  ensure tools registered before get_payload_components
 from backend.domain.predefined.model_settings_property import ModelSettings
 from backend.infra.database import db
+
+
 class basic_agent:
     """
         一个Agent基础类
@@ -39,6 +42,7 @@ class basic_agent:
         self.rules = "\n".join(rules)
         self.soul = soul
         self.tools = tools
+        self.workspace_root = kwargs.pop("workspace_root", None)
         if llm_settings is None:
             self.llm_settings = LLMSettingsProperty(model=DEFAULT_MODEL,url=DEFAULT_URL,api_key=DEFAULT_API_KEY)
         else:
@@ -80,12 +84,20 @@ class basic_agent:
         messages={"role": "user", "content": request["text"]}
         db.append_message(request["session_id"], messages)
         # while循环，直到返回值是False
+        session_id = request["session_id"]
+        agent_context = {
+            "workspace_root": self.workspace_root,
+            "allowed_tools": self.tools,
+            "agent_id": self.name,
+            "skills_provider": skills_manager,
+        }
         while True:
             is_final_answer = request_display_action_and_save(
                 client=self.client,
-                session_id=request["session_id"],
+                session_id=session_id,
                 model_settings=self.get_payload(),
-                token=lambda t: print(t, end="", flush=True)
+                token=lambda t: print(t, end="", flush=True),
+                agent_context=agent_context,
             )
             if is_final_answer:
                 break

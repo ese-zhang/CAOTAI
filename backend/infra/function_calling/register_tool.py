@@ -1,13 +1,11 @@
 from backend.infra.function_calling import tool_manager
+from backend.infra.function_calling.context import ToolContext
 import ast
 import difflib
 import os
 import re
 import subprocess
 from pathlib import Path
-
-from backend.app import skills_manager
-from backend.infra.skills.skillsmanager import SkillsManager
 
 tools_list = [
     "list_directory",
@@ -41,7 +39,7 @@ GREP_CONTEXT_LINES = 2
         "required": ["city"]
     }
 )
-def get_weather(city: str):
+def get_weather(ctx: ToolContext, city: str):
     return f"{city}今天晴天"
 
 
@@ -56,8 +54,10 @@ def get_weather(city: str):
         "required": ["skill_name"]
     }
 )
-def load_skill(skill_name: str) -> str:
-    return skills_manager.get_skill_content(skill_name)
+def load_skill(ctx: ToolContext, skill_name: str) -> str:
+    if ctx.skills_provider is None:
+        return "[skills not available in this context]"
+    return ctx.skills_provider.get_skill_content(skill_name)
 
 
 @tool_manager.register(
@@ -72,8 +72,10 @@ def load_skill(skill_name: str) -> str:
         "required": ["query"]
     }
 )
-def search_skills(query: str, n: int = 5):
-    return skills_manager.search_skills(query, n)
+def search_skills(ctx: ToolContext, query: str, n: int = 5):
+    if ctx.skills_provider is None:
+        return "[skills not available in this context]"
+    return ctx.skills_provider.search_skills(query, n)
 
 
 @tool_manager.register(
@@ -88,8 +90,10 @@ def search_skills(query: str, n: int = 5):
         "required": ["skill_name", "relative_path"]
     }
 )
-def load_skill_asset(skill_name: str, relative_path: str) -> str:
-    return skills_manager.get_skill_asset(skill_name, relative_path)
+def load_skill_asset(ctx: ToolContext, skill_name: str, relative_path: str) -> str:
+    if ctx.skills_provider is None:
+        return "[skills not available in this context]"
+    return ctx.skills_provider.get_skill_asset(skill_name, relative_path)
 
 
 @tool_manager.register(
@@ -104,8 +108,10 @@ def load_skill_asset(skill_name: str, relative_path: str) -> str:
         "required": ["skill_name", "script_name"]
     }
 )
-def get_skill_script_path(skill_name: str, script_name: str) -> str:
-    return SkillsManager().get_skill_script_path(skill_name, script_name)
+def get_skill_script_path(ctx: ToolContext, skill_name: str, script_name: str) -> str:
+    if ctx.skills_provider is None:
+        return "[skills not available in this context]"
+    return ctx.skills_provider.get_skill_script_path(skill_name, script_name)
 
 
 @tool_manager.register(
@@ -119,8 +125,10 @@ def get_skill_script_path(skill_name: str, script_name: str) -> str:
         "required": ["skill_name"]
     }
 )
-def list_skill_assets(skill_name: str):
-    return SkillsManager().list_skill_assets(skill_name)
+def list_skill_assets(ctx: ToolContext, skill_name: str):
+    if ctx.skills_provider is None:
+        return "[skills not available in this context]"
+    return ctx.skills_provider.list_skill_assets(skill_name)
 
 
 @tool_manager.register(
@@ -135,15 +143,15 @@ def list_skill_assets(skill_name: str):
         "required": ["path", "depth"]
     }
 )
-def list_directory(path: str, depth: int) -> list:
+def list_directory(ctx: ToolContext, path: str, depth: int) -> list:
     """
-        列出指定路径下的所有文件和文件夹
+        列出指定路径下的所有文件和文件夹（路径相对于 Agent 工作目录）
         :param path: 要列出的路径
         :param depth: 深度,-1为所有
         :return: 文件和文件夹的列表
     """
     try:
-        root = Path(path).resolve()
+        root = ctx.resolve_path(path)
         if not root.exists() or not root.is_dir():
             return []
         result = []
@@ -182,15 +190,15 @@ def list_directory(path: str, depth: int) -> list:
         "required": ["file_path", "module_depth"]
     }
 )
-def list_modules(file_path: str, module_depth: int) -> list:
+def list_modules(ctx: ToolContext, file_path: str, module_depth: int) -> list:
     """
-        列出指定文件内的所有模块
+        列出指定文件内的所有模块（路径相对于 Agent 工作目录）
         :param file_path: 要列出的python文件路径
         :param module_depth: 0=当前文件(顶层类/函数), 1=子模块(类内方法), 2=子模块的子模块, 以此类推
         :return: 模块的列表
     """
     try:
-        path = Path(file_path).resolve()
+        path = ctx.resolve_path(file_path)
         if not path.exists() or path.suffix != ".py":
             return []
         source = path.read_text(encoding="utf-8", errors="replace")
@@ -226,17 +234,16 @@ def list_modules(file_path: str, module_depth: int) -> list:
         "required": ["path", "start_lines", "end_lines"]
     }
 )
-def read_file(path: str, start_lines: int, end_lines: int) -> str:
+def read_file(ctx: ToolContext, path: str, start_lines: int, end_lines: int) -> str:
     """
-        读取指定路径下的文件,并返回指定行数的内容,
-        如果差距超过阈值, 则返回start_lines到阈值行数的内容, 并提示用户需要读取更多行数
+        读取指定路径下的文件（路径相对于 Agent 工作目录）,并返回指定行数的内容
         :param path: 要读取的文件路径
         :param start_lines: 开始行数
         :param end_lines: 结束行数
-        :return: 指定行数的内容, 如果差距超过阈值, 则返回start_lines到阈值行数的内容, 并提示用户需要读取更多行数
+        :return: 指定行数的内容
     """
     try:
-        p = Path(path).resolve()
+        p = ctx.resolve_path(path)
         if not p.exists() or not p.is_file():
             return ""
         lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -266,15 +273,15 @@ def read_file(path: str, start_lines: int, end_lines: int) -> str:
         "required": ["path", "module_name"]
     }
 )
-def read_module(path: str, module_name: str) -> str:
+def read_module(ctx: ToolContext, path: str, module_name: str) -> str:
     """
-        读取指定python文件下读取指定类或函数,如果不是python文件则返回提示信息(string)
+        读取指定python文件下指定类或函数（路径相对于 Agent 工作目录）
         :param path: 要读取的python文件路径
         :param module_name: 要读取的类或函数名称
         :return: 类或函数内容
     """
     try:
-        p = Path(path).resolve()
+        p = ctx.resolve_path(path)
         if not p.exists() or not p.is_file():
             return "文件不存在。"
         if p.suffix != ".py":
@@ -343,16 +350,15 @@ def read_module(path: str, module_name: str) -> str:
         "required": ["file_path", "regex"]
     }
 )
-def grep(file_path: str, regex: str) -> list:
+def grep(ctx: ToolContext, file_path: str, regex: str) -> list:
     """
-    正则定位。在指定文件中按照正则表达式搜索关键词, 并返回匹配的行数和内容。
-    返回结果应包含 文件名、行号及上下文预览（上下各 2 行）。
+    正则定位。在指定文件中按照正则表达式搜索关键词（路径相对于 Agent 工作目录）
     :param file_path: 要搜索的文件路径
     :param regex: 要搜索的正则表达式
-    :return: 匹配的行数和内容, 如果文件不存在或没有匹配的行, 则返回空列表
+    :return: 匹配的行数和内容
     """
     try:
-        p = Path(file_path).resolve()
+        p = ctx.resolve_path(file_path)
         if not p.exists() or not p.is_file():
             return []
         lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -393,6 +399,7 @@ def grep(file_path: str, regex: str) -> list:
     }
 )   
 def apply_diff(
+    ctx: ToolContext,
     file_path: str,
     search_block: str,
     replace_block: str,
@@ -400,19 +407,18 @@ def apply_diff(
     allow_fuzzy: bool = False,
 ) -> str:
     """
-    使用搜索替换的方式应用diff到指定文件, 并返回应用diff后的文件内容
-    如果allow_fuzzy为True, 则使用模糊搜索的方式应用diff到指定文件, 并返回应用diff后的文件内容
+    使用搜索替换的方式应用diff到指定文件（路径相对于 Agent 工作目录）
     :param file_path: 要应用的文件路径
     :param search_block: 要搜索的块
     :param replace_block: 要替换的块
     :param occurence: 要替换的块的索引列表, 如果为空则替换所有匹配的块
     :param allow_fuzzy: 是否允许模糊搜索
-    :return: 应用diff后的文件内容, 如果文件不存在或没有匹配的块, 则返回空字符串
+    :return: 应用diff后的文件内容
     """
     if occurence is None:
         occurence = [1]
     try:
-        p = Path(file_path).resolve()
+        p = ctx.resolve_path(file_path)
         if not p.exists() or not p.is_file():
             return ""
         content = p.read_text(encoding="utf-8", errors="replace")
@@ -463,16 +469,15 @@ def apply_diff(
         "required": ["file_path", "content"]
     }
 )
-def create_file(file_path: str, content: str) -> bool:
+def create_file(ctx: ToolContext, file_path: str, content: str) -> bool:
     """
-    创建指定路径下的文件, 并返回是否创建成功
-    如果文件已存在, 则返回False
-    :param file_path: 要创建的文件路径
+    在工作目录下创建指定路径的文件
+    :param file_path: 要创建的文件路径（相对于 Agent 工作目录）
     :param content: 要创建的文件内容
     :return: 是否创建成功
     """
     try:
-        p = Path(file_path).resolve()
+        p = ctx.resolve_path(file_path)
         if p.exists():
             return False
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -481,7 +486,19 @@ def create_file(file_path: str, content: str) -> bool:
     except Exception:
         return False
 
-def run_shell_command(command: str) -> str:
+
+@tool_manager.register(
+    name="run_shell_command",
+    description="执行指定 shell 命令并返回标准输出",
+    parameters={
+        "type": "object",
+        "properties": {
+            "command": {"type": "string", "description": "要执行的 shell 命令"}
+        },
+        "required": ["command"]
+    }
+)
+def run_shell_command(ctx: ToolContext, command: str) -> str:
     """
     执行指定shell命令, 并返回执行结果
     如果命令执行失败, 则返回错误信息
