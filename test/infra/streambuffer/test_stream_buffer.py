@@ -1,7 +1,7 @@
 import concurrent.futures
 import threading
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -10,15 +10,16 @@ from backend.infra.streambuffer.stream_buffer_module import SessionState
 
 
 @pytest.fixture
-def mock_db():
-    with patch("backend.infra.streambuffer.stream_buffer_module.db") as mock:
-        mock.load_messages.side_effect = lambda path: []
-        yield mock
+def mock_store():
+    """实现 MessageStore 协议的 mock，用于注入，避免依赖真实 db。"""
+    store = MagicMock()
+    store.load_messages.side_effect = lambda session_id: []
+    return store
 
 
 @pytest.fixture
-def manager(mock_db):
-    mgr = Stream_Buffer(flush_interval=0.05)
+def manager(mock_store):
+    mgr = Stream_Buffer(message_store=mock_store, flush_interval=0.05)
     yield mgr
     mgr.shutdown()
 
@@ -33,19 +34,19 @@ class TestMemoryManager:
             return args[index]
         return None
 
-    def test_sessions_are_isolated(self):
-        s1 = SessionState("A")
-        s2 = SessionState("B")
+    def test_sessions_are_isolated(self, mock_store):
+        s1 = SessionState("A", mock_store)
+        s2 = SessionState("B", mock_store)
 
         s1.add_message({"msg": "1"})
         assert len(s2.messages) == 0
 
-    def test_start_stream_initializes_session(self, manager, mock_db):
+    def test_start_stream_initializes_session(self, manager, mock_store):
         path = "session_init"
         manager.start_stream(path)
 
         assert path in manager.sessions
-        mock_db.load_messages.assert_called_with(path)
+        mock_store.load_messages.assert_called_with(path)
 
     def test_append_content_updates_state(self, manager):
         path = "append_test"
@@ -56,36 +57,36 @@ class TestMemoryManager:
         assert state.messages[-1]["content"] == "Hello"
         assert state.dirty is True
 
-    def test_background_flush_updates_db(self, manager, mock_db):
+    def test_background_flush_updates_db(self, manager, mock_store):
         path = "flush_test"
         manager.start_stream(path)
         manager.append_content(path, "Streaming...")
 
         for _ in range(10):
-            if mock_db.update_last_message.called:
-                call = mock_db.update_last_message.call_args
+            if mock_store.update_last_message.called:
+                call = mock_store.update_last_message.call_args
                 if self._get_arg(call, 1, "content") == "Streaming...":
                     return
             time.sleep(0.1)
 
         pytest.fail("后台 flush 未触发")
 
-    def test_end_stream_finalizes(self, manager, mock_db):
+    def test_end_stream_finalizes(self, manager, mock_store):
         path = "end_test"
         manager.start_stream(path)
         manager.append_content(path, "Done.")
 
-        mock_db.update_last_message.reset_mock()
+        mock_store.update_last_message.reset_mock()
         tools = [{"name": "calculator"}]
 
         manager.end_stream(path, tool_calls=tools)
 
         assert path not in manager.sessions
-        call = mock_db.update_last_message.call_args
+        call = mock_store.update_last_message.call_args
         assert self._get_arg(call, 1, "content") == "Done."
         assert self._get_arg(call, 3, "tool_calls") == tools
 
-    def test_append_message_forces_end_stream(self, manager, mock_db):
+    def test_append_message_forces_end_stream(self, manager, mock_store):
         path = "interrupt"
         manager.start_stream(path)
 
@@ -93,18 +94,18 @@ class TestMemoryManager:
         manager.append_message(path, new_msg)
 
         assert path not in manager.sessions
-        mock_db.append_message.assert_called_with(path, new_msg)
+        mock_store.append_message.assert_called_with(path, new_msg)
 
-    def test_reasoning_persistence(self, manager, mock_db):
+    def test_reasoning_persistence(self, manager, mock_store):
         path = "reasoning"
         manager.start_stream(path)
         manager.append_reasoning(path, "Thinking")
         manager.append_content(path, "Result")
 
-        mock_db.update_last_message.reset_mock()
+        mock_store.update_last_message.reset_mock()
         manager.end_stream(path)
 
-        call = mock_db.update_last_message.call_args
+        call = mock_store.update_last_message.call_args
         assert self._get_arg(call, 1, "content") == "Result"
         assert self._get_arg(call, 2, "reasoning") == "Thinking"
 

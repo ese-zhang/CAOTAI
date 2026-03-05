@@ -14,7 +14,6 @@ if __name__ == "__main__":
     workspace_root = Path(__file__).resolve().parent
 
     session_id = "sessions_01"
-    db.clear_session(session_id)
 
     agent = basic_agent(
         name="Agent",

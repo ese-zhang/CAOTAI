@@ -3,18 +3,20 @@ import time
 import threading
 import warnings
 from typing import Dict, List, Optional
-from backend.infra.database import db
+
+from backend.infra.message_store import MessageStore
 
 
 class SessionState:
     """
-    单个 session 的完整状态
+    单个 session 的完整状态；消息从注入的 message_store 加载，不依赖具体 DB。
     """
-    def __init__(self, session_path: str):
+    def __init__(self, session_path: str, message_store: MessageStore):
         self.session_path = session_path
+        self._store = message_store
         try:
-            raw_data = db.load_messages(session_path)
-            # 使用深拷贝，确保即便 db 模块抽风返回了共享对象，内存也是隔离的
+            raw_data = message_store.load_messages(session_path)
+            # 使用深拷贝，确保即便 store 返回了共享对象，内存也是隔离的
             self.messages = copy.deepcopy(raw_data) if raw_data else []
         except FileNotFoundError:
             self.messages = []
@@ -54,9 +56,11 @@ class Stream_Buffer:
     - 路由 session -> SessionState
     - 提供 stream 生命周期 API
     - 后台低频 flush
+    消息持久化通过注入的 message_store 完成，不依赖 infra 内其他模块。
     """
 
-    def __init__(self, flush_interval: float = 0.5):
+    def __init__(self, message_store: MessageStore, flush_interval: float = 0.5):
+        self._message_store = message_store
         self.sessions: Dict[str, SessionState] = {}
         self.flush_interval = flush_interval
 
@@ -81,7 +85,7 @@ class Stream_Buffer:
             state = self.sessions.get(session_path)
             if not state:
                 # 初始化内存 session
-                state = SessionState(session_path)
+                state = SessionState(session_path, self._message_store)
                 self.sessions[session_path] = state
 
             assistant_message = {
@@ -91,7 +95,7 @@ class Stream_Buffer:
                 }
             with state.lock:
                 state.add_message(assistant_message)
-                db.append_message(session_path, assistant_message)
+                self._message_store.append_message(session_path, assistant_message)
 
             return assistant_message
 
@@ -104,9 +108,9 @@ class Stream_Buffer:
         with state.lock:
             # 获取内存中最后一条 assistant 消息的状态
             last_msg = state.messages[-1]
-            # 增量更新数据库中对应的最后一行
-            db.update_last_message(
-                session_path, 
+            # 增量更新存储中对应的最后一行
+            self._message_store.update_last_message(
+                session_path,
                 content=last_msg.get("content"),
                 reasoning=last_msg.get("model_extra", {}).get("reasoning_content"),
                 tool_calls=tool_calls
@@ -138,14 +142,14 @@ class Stream_Buffer:
             with state.lock:
                 # 同步最后的状态
                 last_msg = state.messages[-1]
-                db.update_last_message(
+                self._message_store.update_last_message(
                     session_path,
                     content=last_msg.get("content"),
                     reasoning=last_msg.get("model_extra", {}).get("reasoning_content")
                 )
             with self.global_lock:
                 self.sessions.pop(session_path, None)
-        db.append_message(session_path, message)
+        self._message_store.append_message(session_path, message)
 
     # ---------- 读取 ----------
 
@@ -219,9 +223,9 @@ class Stream_Buffer:
                     finally:
                         state.lock.release()
 
-                    # 增量同步：更新数据库中该 Session 的最后一条记录
-                    # 这样即便用户没流完，数据库里也能看到当前进度
-                    db.update_last_message(session_id, content, reasoning)
+                    # 增量同步：更新存储中该 Session 的最后一条记录
+                    # 这样即便用户没流完，存储里也能看到当前进度
+                    self._message_store.update_last_message(session_id, content=content, reasoning=reasoning)
 
     def shutdown(self):
         self.running = False

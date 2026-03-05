@@ -4,7 +4,7 @@ from typing import Callable, Optional
 
 from backend.config import DOCUMENT_ROOT
 from backend.infra.function_calling.context import ToolContext
-from backend.infra.streambuffer import stream_buffer
+from backend.app.global_resource import stream_buffer
 
 
 def _tool_result_to_plain_text(value) -> str:
