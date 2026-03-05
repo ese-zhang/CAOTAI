@@ -1,0 +1,22 @@
+# global settings
+default_llm_settings:
+  default_model: Pro/MiniMaxAI/MiniMax-M2.5
+  default_url: https://api.siliconflow.cn/v1
+  default_api_key: sk-12112121121
+
+llm_settings_options:
+  option_1:
+    model: Pro/MiniMaxAI/MiniMax-M2.5
+    url: https://api.siliconflow.cn/v1
+    api_key: sk-12112121121
+  option_2:
+    model: Pro/MiniMaxAI/MiniMax-M2.5
+    url: https://api.siliconflow.cn/v1
+    api_key: sk-22222222222
+  option_3:
+    model: Pro/MiniMaxAI/MiniMax-M2.5
+    url: https://api.siliconflow.cn/v1
+    api_key: sk-33333333333
+
+document_root: ../documents
+agent_root: document/agent
