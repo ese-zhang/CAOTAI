@@ -1,9 +1,7 @@
 import json
 from typing import Callable
 
-from backend.infra.fileio import save_messages
-from backend.core.memory import agent_memory
-from backend.infra.database import db
+from backend.infra.streambuffer import stream_buffer
 
 
 def _tool_result_to_plain_text(value) -> str:
@@ -41,8 +39,8 @@ def request_display_action_and_save(
         ::param kwargs: 其他参数, 必须符合client的参数要求
     """
     # 0. 初始化
-    assistant_message = agent_memory.start_stream(session_id)
-    messages = agent_memory.recall(session_id)
+    assistant_message = stream_buffer.start_stream(session_id)
+    messages = stream_buffer.recall(session_id)
     # 1. 请求模型进行思考和工具请求 Request
     stream = client.chat.completions.create(
         model=model_settings["model"],
@@ -63,7 +61,7 @@ def request_display_action_and_save(
         # 接收思考内容
         if delta.reasoning_content:
             reasoning_content += delta.reasoning_content
-            agent_memory.append_reasoning(
+            stream_buffer.append_reasoning(
                 session_id,
                 delta.reasoning_content
                 )
@@ -94,7 +92,7 @@ def request_display_action_and_save(
                 token("</think>\n")
                 think_flag = -1
             content += delta.content
-            agent_memory.append_content(
+            stream_buffer.append_content(
                 session_id,
                 delta.content
                 )
@@ -105,7 +103,7 @@ def request_display_action_and_save(
         for i in sorted(tool_calls_collector.keys())
         ]
 
-    agent_memory.end_stream(
+    stream_buffer.end_stream(
         session_id,
         tool_calls=final_tool_calls if final_tool_calls else None
         )
@@ -140,7 +138,7 @@ def request_display_action_and_save(
                 "tool_call_id": tool_call["id"],
             }
             token(tool_result)
-            agent_memory.append_message(
+            stream_buffer.append_message(
                 session_id,new_message
                 )
             #print(db.load_messages(session_id)[-1])

@@ -5,20 +5,20 @@ from unittest.mock import patch
 
 import pytest
 
-from backend.core.memory import MemoryManager
-from backend.core.memory.memory_manager import SessionState
+from backend.infra.streambuffer import Stream_Buffer
+from backend.infra.streambuffer.stream_buffer_module import SessionState
 
 
 @pytest.fixture
 def mock_db():
-    with patch("backend.core.memory.memory_manager.db") as mock:
+    with patch("backend.infra.streambuffer.stream_buffer_module.db") as mock:
         mock.load_messages.side_effect = lambda path: []
         yield mock
 
 
 @pytest.fixture
 def manager(mock_db):
-    mgr = MemoryManager(flush_interval=0.05)
+    mgr = Stream_Buffer(flush_interval=0.05)
     yield mgr
     mgr.shutdown()
 

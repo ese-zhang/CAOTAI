@@ -48,7 +48,7 @@ class SessionState:
         return copy.deepcopy(self.messages)
 
 
-class MemoryManager:
+class Stream_Buffer:
     """
     职责：
     - 路由 session -> SessionState
@@ -151,7 +151,7 @@ class MemoryManager:
 
     def recall(self, session_path: str) -> List[Dict]:
         """
-        返回经过 memory 策略处理后的消息：
+        返回经过 streambuffer 策略处理后的消息：
         - 高频消息权重高
         - 最近消息优先
         - 可以加 embedding/semantic retrieval
@@ -162,7 +162,7 @@ class MemoryManager:
             return []
 
         with state.lock:
-            # 这里做 memory 策略处理，而不是直接返回全量 messages
+            # 这里做 streambuffer 策略处理，而不是直接返回全量 messages
             messages = state.messages
             filtered = messages#self.memory_filter(messages)
             return filtered
